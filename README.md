@@ -116,6 +116,9 @@ src/crypto/            pure functions, no React, no storage
  ├─ signatures.ts SHA-256 + secp256k1 compact signatures
  └─ vectors.ts    published BIP-39/BIP-32/BIP-44 vectors + labelled regression pins
 
+src/security/
+ └─ csp.ts          the Content-Security-Policy the built app ships, directive by directive
+
 src/vault/
  ├─ schema.ts       versioned document, migration, defaults, validation
  ├─ vault.ts        create/unlock/lock/update/re-wrap on top of src/crypto
@@ -170,7 +173,7 @@ The Messages panel starts in **local only** mode, where a chat never leaves the 
 - Chat is also covered without the network: `src/messaging/waku.test.ts` drives the adapter with a fake SDK, and `src/ui/messaging-context.test.tsx` runs two identities against an in-memory network to exercise the contact, thread, rejection and vault-storage paths through the real UI.
 - Pay-in-chat is tested at the same three levels: `src/messaging/payments.test.ts` (23 tests) pins the codec — a request must name its chain, a paid receipt must carry a 32-byte hash, a declined one must not; `src/messaging/service.test.ts` proves the amount and the payee address never appear on the wire in the clear and that a mainnet request publishes nothing; `src/ui/messaging-context.test.tsx` drives the whole loop through the UI — ask, pay with one click against the in-memory chain, hash back in the thread, decline without a chain call, and a shortfall that disables the button.
 - CI runs lint, format check, typecheck, unit tests, build, Playwright and gitleaks on every push and pull request, and reports `npm audit` without failing the build.
-- The threat model is a document, not a test, but it is written from the code: every claim in [`docs/SECURITY.md`](docs/SECURITY.md) names the module and the test file that backs it, and the things that are _not_ defended are listed there as carefully as the things that are.
+- The threat model is a document, not a test, but it is written from the code: every claim in [`docs/SECURITY.md`](docs/SECURITY.md) names the module and the test file that backs it, and the things that are _not_ defended are listed there as carefully as the things that are. The one part of it that _is_ a test is the Content-Security-Policy: `src/security/csp.test.ts` pins each directive and the deliberately absent ones, and `e2e/smoke.spec.ts` asserts the policy is in the HTML the build produced.
 - Every number in the Results table is generated: `npm run report` measures the suite (Vitest's JSON reporter), the bundle (Vite's own build output), the browser tests, one Argon2id derivation and `npm audit`, writes `docs/report.json`, and rewrites the README block from it. `npm run report:check` runs in CI and fails if the table and the record drift apart, and a measurement this machine cannot take is written as **not measured** with its reason rather than guessed.
 
 ## What this does not do
