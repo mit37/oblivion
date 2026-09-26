@@ -1,0 +1,8 @@
+{
+  "gasLimit": 21000,
+  "gasPriceGwei": 20,
+  "maxFeePerGasGwei": 40,
+  "sendAmountEth": "0.001",
+  "worstCaseFeeEth": "0.00084",
+  "totalRequiredEth": "0.00184"
+}

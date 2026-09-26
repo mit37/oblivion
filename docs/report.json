@@ -1,0 +1,109 @@
+{
+  "generatedAt": "2026-09-26T21:45:08.020Z",
+  "node": "24.20.0",
+  "platform": "win32",
+  "unit": {
+    "passed": 589,
+    "skipped": 2,
+    "files": 30,
+    "skippedFiles": 0,
+    "wallSeconds": 42.8,
+    "modules": [
+      {
+        "label": "- crypto module",
+        "prefix": "src/crypto/",
+        "command": "npx vitest run src/crypto",
+        "tests": 175,
+        "pending": 0
+      },
+      {
+        "label": "- vault module",
+        "prefix": "src/vault/",
+        "command": "npx vitest run src/vault",
+        "tests": 140,
+        "pending": 0
+      },
+      {
+        "label": "- wallet engine",
+        "prefix": "src/wallet/",
+        "command": "npx vitest run src/wallet",
+        "tests": 88,
+        "pending": 0
+      },
+      {
+        "label": "- messaging module",
+        "prefix": "src/messaging/",
+        "command": "npx vitest run src/messaging",
+        "tests": 98,
+        "pending": 2
+      }
+    ],
+    "uiTests": 88,
+    "payInChatSeconds": 1.2
+  },
+  "build": {
+    "chunks": [
+      {
+        "label": "Production bundle, app chunk",
+        "file": "index-BM1xvFEN.js",
+        "rawKb": "702.05",
+        "gzipKb": "222.21"
+      },
+      {
+        "label": "Production bundle, CSS",
+        "file": "index-_qzWoFkp.css",
+        "rawKb": "6.27",
+        "gzipKb": "1.97"
+      },
+      {
+        "label": "Production bundle, lazily loaded libsodium chunk",
+        "file": "libsodium-wrappers-BEvnB-no.js",
+        "rawKb": "533.91",
+        "gzipKb": "189.07"
+      },
+      {
+        "label": "Production bundle, lazily loaded Waku SDK chunk",
+        "file": "dist-B_pRGSE1.js",
+        "rawKb": "849.47",
+        "gzipKb": "258.19"
+      },
+      {
+        "label": "Production bundle, Waku adapter chunk",
+        "file": "waku-9N6w6K-w.js",
+        "rawKb": "2.58",
+        "gzipKb": "1.06"
+      }
+    ],
+    "chunkCount": 7
+  },
+  "e2e": {
+    "expected": 2,
+    "unexpected": 0,
+    "skipped": 0,
+    "seconds": 6.4
+  },
+  "live": {
+    "status": "not-measured",
+    "reason": "opt-in: needs outbound network access",
+    "frameSeconds": null,
+    "directMessageSeconds": null
+  },
+  "argon2Seconds": 0.36,
+  "audit": {
+    "status": "measured",
+    "total": 6,
+    "info": 0,
+    "low": 0,
+    "moderate": 2,
+    "high": 4,
+    "critical": 0
+  },
+  "fixture": {
+    "gasLimit": 21000,
+    "gasPriceGwei": 20,
+    "maxFeePerGasGwei": 40,
+    "sendAmountEth": "0.001",
+    "worstCaseFeeEth": "0.00084",
+    "totalRequiredEth": "0.00184"
+  }
+}

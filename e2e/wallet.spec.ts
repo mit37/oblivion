@@ -1,10 +1,18 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import stub from './stub-chain.json' with { type: 'json' }
+
 /**
  * The wallet end to end, with the public Sepolia endpoint replaced by a canned
  * JSON-RPC server. viem, the chain guard, the fee maths and the UI are all real;
  * only the chain is fake, so CI never needs outbound network access.
+ *
+ * The gas numbers live in `stub-chain.json` because this test's assertion on the
+ * fee and `scripts/report.mjs`'s row about it must not drift apart.
  */
+
+const hex = (value: number): string => `0x${BigInt(value).toString(16)}`
+const gwei = (value: number): string => `0x${(BigInt(value) * 10n ** 9n).toString(16)}`
 
 const RPC_PATTERN = /ethereum-sepolia-rpc\.publicnode\.com/
 const CHAIN_ID = '0xaa36a7' // 11155111
@@ -56,10 +64,10 @@ async function respond(call: RpcCall, state: StubState): Promise<unknown> {
       return block(Number.parseInt(String(call.params[0]), 16), state.address)
 
     case 'eth_estimateGas':
-      return '0x5208' // 21 000
+      return hex(stub.gasLimit)
 
     case 'eth_gasPrice':
-      return '0x4a817c800' // 20 gwei
+      return gwei(stub.gasPriceGwei)
 
     case 'eth_getTransactionCount':
       return '0x0'
@@ -75,8 +83,8 @@ async function respond(call: RpcCall, state: StubState): Promise<unknown> {
       return {
         ...request,
         chainId: CHAIN_ID,
-        gas: '0x5208',
-        maxFeePerGas: '0x9502f9000', // 40 gwei
+        gas: hex(stub.gasLimit),
+        maxFeePerGas: gwei(stub.maxFeePerGasGwei),
         maxPriorityFeePerGas: '0x3b9aca00',
         nonce: '0x0',
         type: '0x2',
@@ -94,14 +102,14 @@ async function respond(call: RpcCall, state: StubState): Promise<unknown> {
             transactionHash: SENT_HASH,
             status: '0x1',
             blockNumber: BLOCK_NUMBER,
-            gasUsed: '0x5208',
-            cumulativeGasUsed: '0x5208',
+            gasUsed: hex(stub.gasLimit),
+            cumulativeGasUsed: hex(stub.gasLimit),
             logs: [],
             logsBloom: `0x${'00'.repeat(256)}`,
             transactionIndex: '0x0',
             blockHash: `0x${'11'.repeat(32)}`,
             contractAddress: null,
-            effectiveGasPrice: '0x4a817c800',
+            effectiveGasPrice: gwei(stub.gasPriceGwei),
             type: '0x2',
           }
         : null
@@ -132,7 +140,7 @@ function block(number: number, address: string): unknown {
     extraData: '0x',
     size: '0x200',
     gasLimit: '0x1c9c380',
-    gasUsed: '0x5208',
+    gasUsed: hex(stub.gasLimit),
     baseFeePerGas: '0x3b9aca00',
     timestamp: '0x66f00000',
     uncles: [],
@@ -146,9 +154,9 @@ function block(number: number, address: string): unknown {
         from: `0x${'88'.repeat(20)}`,
         to: address || null,
         value: '0x5af3107a4000', // 0.0001 ETH
-        gas: '0x5208',
-        gasPrice: '0x4a817c800',
-        maxFeePerGas: '0x4a817c800',
+        gas: hex(stub.gasLimit),
+        gasPrice: gwei(stub.gasPriceGwei),
+        maxFeePerGas: gwei(stub.gasPriceGwei),
         maxPriorityFeePerGas: '0x3b9aca00',
         nonce: '0x1',
         input: '0x',
@@ -211,14 +219,15 @@ test('wallet: balances, sends and reads history over a stubbed Sepolia endpoint'
 
   // A transfer, with the fee shown before anything is signed.
   await page.getByLabel('Recipient address or payment link').fill(`0x${'22'.repeat(20)}`)
-  await page.getByLabel('Amount (ETH)').fill('0.001')
+  await page.getByLabel('Amount (ETH)').fill(stub.sendAmountEth)
   await page.getByRole('button', { name: 'Review transfer' }).click()
 
   const review = page.getByTestId('send-review')
-  await expect(review).toContainText('0.00084 ETH') // 21 000 gas × a 40 gwei cap
-  await expect(review).toContainText('0.00184 ETH')
+  // Worst case: the gas limit at the capped fee (the numbers in stub-chain.json).
+  await expect(review).toContainText(`${stub.worstCaseFeeEth} ETH`)
+  await expect(review).toContainText(`${stub.totalRequiredEth} ETH`)
 
-  await page.getByRole('button', { name: 'Send 0.001 ETH' }).click()
+  await page.getByRole('button', { name: `Send ${stub.sendAmountEth} ETH` }).click()
 
   const sent = page.getByTestId('sent-transaction')
   await expect(sent).toContainText(SENT_HASH)

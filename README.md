@@ -39,32 +39,40 @@ Pay-in-chat is the same envelope doing a second job: one side seals a Sepolia pa
 
 ## Results
 
-Every number below was produced by this repo on 2026-09-26 (Node 24.20.0, Windows), with the command shown. Anything that cannot be measured here is reported as "not measured".
+<!-- report:start -->
 
-| Measurement                                              | Value                                                | Command                                                                         |
-| -------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Unit tests (Vitest)                                      | 589 passing, 30 files (2 more skipped), ~36 s        | `npm test`                                                                      |
-| - crypto module                                          | 175 tests                                            | `npx vitest run src/crypto`                                                     |
-| - vault module                                           | 140 tests                                            | `npx vitest run src/vault`                                                      |
-| - wallet engine                                          | 88 tests                                             | `npx vitest run src/wallet`                                                     |
-| - messaging module                                       | 98 tests (2 live tests skipped unless opted in)      | `npx vitest run src/messaging`                                                  |
-| - app + UI (wallet, QR and chat panels)                  | 88 tests                                             | `npx vitest run src/App.test.tsx src/ui`                                        |
-| End-to-end (Playwright, Chromium, built app)             | 2 passing (5.2 s)                                    | `npm run test:e2e`                                                              |
-| Live Waku: a light node carries one transport frame      | 7.1 s (peer discovery included)                      | `WAKU_LIVE=1 npx vitest run --environment node src/messaging/waku.live.test.ts` |
-| Live Waku: two light nodes trade a sealed direct message | 10.4 s (peer discovery included)                     | (same command)                                                                  |
-| Production bundle, app chunk                             | 702.0 kB (222.2 kB gzip)                             | `npm run build`                                                                 |
-| Production bundle, lazily loaded libsodium chunk         | 533.9 kB (189.1 kB gzip)                             | `npm run build`                                                                 |
-| Production bundle, lazily loaded Waku SDK chunk          | 849.5 kB (258.2 kB gzip)                             | `npm run build`                                                                 |
-| Production bundle, Waku adapter chunk                    | 2.6 kB (1.1 kB gzip)                                 | `npm run build`                                                                 |
-| Argon2id at the default `interactive` profile            | ~0.41 s per derivation                               | `npx vitest run src/crypto/kdf.test.ts`                                         |
-| Pay-in-chat loop in the UI (ask → one click → hash back) | 1.0 s per run (in-memory network + fake chain)       | `npx vitest run src/ui/messaging-context.test.tsx`                              |
-| Fee shown for a 0.001 ETH send at a 20 gwei gas price    | 0.00084 ETH (worst case, 21 000 gas × a 40 gwei cap) | `npx playwright test e2e/wallet.spec.ts`                                        |
+Every number below was produced by this repo on 2026-09-26 with `npm run report` (Node 24.20.0, Windows). A measurement this machine cannot take is reported as **not measured** with the reason, never guessed. The raw output the script parsed is committed as [`docs/report.json`](docs/report.json), and `npm run report:check` fails if this block stops matching it.
 
-The two live Waku figures are real timings against the public network from this one machine, and they will differ anywhere else — Waku's own peer discovery dominates them. The wallet's fee figure is deliberately a _stubbed_ endpoint's response, so it is reproducible in CI without outbound access. Both live tests are opt-in for that reason: CI never reaches the network, and never loads the Waku SDK at all.
+| Measurement                                              | Value                                                                    | Command                                            |
+| -------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------- |
+| Unit tests (Vitest)                                      | 589 passing, 30 files (2 more skipped), 42.8 s wall time                 | `npm test`                                         |
+| - crypto module                                          | 175 tests                                                                | `npx vitest run src/crypto`                        |
+| - vault module                                           | 140 tests                                                                | `npx vitest run src/vault`                         |
+| - wallet engine                                          | 88 tests                                                                 | `npx vitest run src/wallet`                        |
+| - messaging module                                       | 98 tests (2 skipped unless opted in)                                     | `npx vitest run src/messaging`                     |
+| - app + UI (wallet, QR, chat and pay-in-chat panels)     | 88 tests                                                                 | `npx vitest run src/App.test.tsx src/ui`           |
+| End-to-end (Playwright, Chromium, built app)             | 2 passing (6.4 s)                                                        | `npm run test:e2e`                                 |
+| Live Waku: a light node carries one transport frame      | not measured here — opt-in: needs outbound network access                | `WAKU_LIVE=1 npm run report`                       |
+| Live Waku: two light nodes trade a sealed direct message | not measured here — opt-in: needs outbound network access                | `(same command)`                                   |
+| Production bundle, app chunk                             | 702.05 kB (222.21 kB gzip)                                               | `npm run build`                                    |
+| Production bundle, CSS                                   | 6.27 kB (1.97 kB gzip)                                                   | `npm run build`                                    |
+| Production bundle, lazily loaded libsodium chunk         | 533.91 kB (189.07 kB gzip)                                               | `npm run build`                                    |
+| Production bundle, lazily loaded Waku SDK chunk          | 849.47 kB (258.19 kB gzip)                                               | `npm run build`                                    |
+| Production bundle, Waku adapter chunk                    | 2.58 kB (1.06 kB gzip)                                                   | `npm run build`                                    |
+| Argon2id at the default `interactive` profile            | 0.36 s per derivation                                                    | `npm run report`                                   |
+| Dependency advisories (`npm audit`)                      | 6 (2 moderate, 4 high) — reported in CI, non-blocking                    | `npm audit`                                        |
+| Pay-in-chat loop in the UI (ask → one click → hash back) | 1.2 s per run (in-memory network + fake chain)                           | `npx vitest run src/ui/messaging-context.test.tsx` |
+| Fee shown for a 0.001 ETH send at a 20 gwei gas price    | 0.00084 ETH (worst case, 21 000 gas × a 40 gwei cap)                     | `npx playwright test e2e/wallet.spec.ts`           |
+| Real Sepolia RPC response times                          | not measured — needs a funded endpoint on the day; it varies by provider | `npm run report`                                   |
+| On-device mobile numbers                                 | not measured — there is no mobile build                                  | `npm run report`                                   |
 
-Not measured here, and why: real Sepolia RPC response times (they need a funded network and vary by endpoint) and on-device mobile numbers (there is no mobile build). Milestone 8 adds a report script (`npm run report`) that regenerates this table.
+<!-- report:end -->
 
-**Negative result, reported rather than buried:** `npm install @waku/sdk@0.0.36` brings **6 vulnerabilities with it (2 moderate, 4 high)** — `@waku/discovery` pulls in `libp2p` packages and `uuid < 11.1.1`. `npm audit` reports exactly that in CI, where it is non-blocking, and `npm audit fix --force` "resolves" it only by downgrading to `@waku/sdk@0.0.16`, a breaking downgrade of the one dependency the chat runs on. That trade is Mitansh's to make, not the build script's, so the finding stays visible instead of being silenced.
+The live Waku rows are measured only when the run opts in (`WAKU_LIVE=1 npm run report`); otherwise they say so, with the reason in the row — they are real timings against the public network from one machine, and Waku's own peer discovery dominates them, so they differ anywhere else. The wallet's fee figure is deliberately a _stubbed_ endpoint's response, so it is reproducible in CI without outbound access. CI never reaches the network and never loads the Waku SDK at all.
+
+The script never invents a number: a measurement this machine cannot take becomes a **not measured** row that says why, and the raw output it parsed is committed as [`docs/report.json`](docs/report.json) so a reader can check the working. `npm run report:check` runs in CI and fails if the table drifts from that record.
+
+**Negative result, reported rather than buried:** `@waku/sdk@0.0.36` is the one dependency with known advisories (the counts are the `npm audit` row above) — `@waku/discovery` pulls in `libp2p` packages and `uuid < 11.1.1`. `npm audit` reports them in CI, where the step is non-blocking, and `npm audit fix --force` "resolves" them only by downgrading to `@waku/sdk@0.0.16`, a breaking downgrade of the one dependency the chat runs on. That trade is Mitansh's to make, not the build script's, so the finding stays visible instead of being silenced.
 
 Deliberately weak profile: the `test` KDF profile (8 MiB, 1 pass) exists only so the suite stays fast. It cannot be selected without an explicit opt-in flag that the app never sets, and a stored record requesting those parameters is refused.
 
@@ -110,6 +118,10 @@ src/vault/
  ├─ vault.ts        create/unlock/lock/update/re-wrap on top of src/crypto
  ├─ storage-idb.ts  IndexedDB record (the only thing ever persisted)
  └─ auto-lock.ts    inactivity lock with an injectable clock
+
+scripts/
+ └─ report.mjs      measures the suite, the bundle, the browser tests and the KDF;
+                    writes docs/report.json and the README Results table
 ```
 
 Data at rest is exactly one IndexedDB record: `{ id, version, kdf: { algorithm, opsLimit, memLimitBytes, saltHex }, envelope, createdAt, updatedAt }`. `envelope` is `oc1.<nonce>.<aad|->.<ciphertext>` in unpadded URL-safe base64. `src/vault/no-plaintext.test.ts` scans the real database and fails if the password, the mnemonic, a derived key or an address ever appears outside the sealed envelope — and, since milestone 5, if a contact label, an identity string, a conversation id, a content topic or a message body does either.
@@ -124,7 +136,7 @@ npm run dev        # app shell on http://localhost:5173
 npm run verify     # lint, format check, typecheck, unit tests, build, E2E
 ```
 
-No API keys and no configuration are needed. The first screen asks you to create a vault; the password you choose is the only way back in, and the recovery phrase is shown once (and can be revealed again later from the dashboard).
+`npm run report` regenerates the README's Results table from measurements taken on your machine (add `WAKU_LIVE=1` to include the live Waku rows, or stay offline and the table says so). No API keys and no configuration are needed. The first screen asks you to create a vault; the password you choose is the only way back in, and the recovery phrase is shown once (and can be revealed again later from the dashboard).
 
 The Messages panel starts in **local only** mode, where a chat never leaves the tab — useful for trying the UI without a network. "Connect to Waku" swaps in the real light node; to talk between two browsers, copy each identity string (or scan its QR) into the other one's Contacts form, then send. Nothing needs to be configured: `VITE_SEPOLIA_RPC_URL` and `VITE_WAKU_BOOTSTRAP_PEERS` are optional overrides, not requirements.
 
@@ -138,6 +150,7 @@ The Messages panel starts in **local only** mode, where a chat never leaves the 
 - Pay-in-chat is tested at the same three levels: `src/messaging/payments.test.ts` (23 tests) pins the codec — a request must name its chain, a paid receipt must carry a 32-byte hash, a declined one must not; `src/messaging/service.test.ts` proves the amount and the payee address never appear on the wire in the clear and that a mainnet request publishes nothing; `src/ui/messaging-context.test.tsx` drives the whole loop through the UI — ask, pay with one click against the in-memory chain, hash back in the thread, decline without a chain call, and a shortfall that disables the button.
 - CI runs lint, format check, typecheck, unit tests, build, Playwright and gitleaks on every push and pull request, and reports `npm audit` without failing the build.
 - The threat model is a document, not a test, but it is written from the code: every claim in [`docs/SECURITY.md`](docs/SECURITY.md) names the module and the test file that backs it, and the things that are _not_ defended are listed there as carefully as the things that are.
+- Every number in the Results table is generated: `npm run report` measures the suite (Vitest's JSON reporter), the bundle (Vite's own build output), the browser tests, one Argon2id derivation and `npm audit`, writes `docs/report.json`, and rewrites the README block from it. `npm run report:check` runs in CI and fails if the table and the record drift apart, and a measurement this machine cannot take is written as **not measured** with its reason rather than guessed.
 
 ## What this does not do
 
