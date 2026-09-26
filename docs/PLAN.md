@@ -18,7 +18,7 @@ Ground rules carried from the PRD, in force for every milestone:
 - [x] Crypto tests incl. BIP-39/44 vectors and tamper detection (≥60 tests) — 175 crypto tests
 - [x] Mainnet refusal enforced by a test — `wallet/chain.test.ts` (guard) and `ui/wallet-context.test.tsx` (no chain call happens after the refusal)
 - [x] No plaintext at rest (test-scanned) — `vault/no-plaintext.test.ts` scans the real IndexedDB record for the password, the mnemonic, derived keys, addresses **and, since milestone 5, a contact label, an identity string, a conversation id, a topic string and a message body** (`oblivion:dm`/`/oblivion/1` included), with a control that reopens the same record and reads the body back
-- [ ] Two-party E2EE chat + pay-in-chat demo recorded on testnet — the two-party chat itself **is done and was verified live** (two browsers, two unrelated identities, sealed DMs each way over the public Waku network, below); what is missing is the screen recording, and pay-in-chat is milestone 6
+- [ ] Two-party E2EE chat + pay-in-chat demo recorded on testnet — both are built: the two-party chat **was verified live** (two browsers, two unrelated identities, sealed DMs each way over the public Waku network, below) and pay-in-chat ships in milestone 6. What is missing is the screen recording (milestone 8)
 - [ ] `docs/SECURITY.md` threat model; "unaudited, testnet only" banner in app + README — the banner is in place (`src/safety.ts`, README header, `e2e/smoke.spec.ts` asserts it); the threat model is milestone 7
 - [ ] CI green; tag v2.0.0 — CI is configured and everything it runs passes locally, but the repo has not been pushed, so no green run can be shown yet
 
@@ -90,11 +90,16 @@ Ground rules carried from the PRD, in force for every milestone:
 - [x] The one test that needs the real network (`messaging/waku.live.test.ts`) is opt-in behind `WAKU_LIVE=1` and skipped everywhere else, so CI stays hermetic
 - [x] Two real browsers on the public Waku network exchanged sealed messages in both directions, verified by hand on the built app (below)
 
-### 6. Pay-in-chat — not started
+### 6. Pay-in-chat — **complete**
 
-- [ ] Send a Sepolia payment request inside a chat
-- [ ] Recipient pays with one confirmation
-- [ ] Transaction hash posted back into the thread
+- [x] A payment request is a chat message: `MessagingService.sendPaymentRequest` validates the draft (address, amount, chain) and seals `{requestId, payTo, amountWei, note, payToChainId}` under the signed kind `payment-request`, so a request that could never be paid never reaches the wire
+- [x] The recipient pays from the thread with one click, after the fee is fetched and shown **before** the button is armed (gas, cap, worst case, total required) and the balance is checked against amount + worst-case fee; a shortfall disables Pay and says why
+- [x] The hash comes back as a `payment-receipt` (`paid`, a 32-byte hash is required by the codec, openable from the thread) or a `declined` receipt — which a test proves makes no chain call at all
+- [x] The kind is signed and AAD-bound, so a frame cannot be re-labelled (text as a payment, a request as a receipt); a payment body that does not parse is rejected on receipt and rendered as a failed frame, never as a pay button
+- [x] The chain guard rides along: a request naming mainnet fails with `MainnetRefusedError` before anything is published, any other chain with `UnsupportedChainError`, and a request that names no chain at all is refused rather than assumed to be Sepolia
+- [x] Vault schema v3: a request carries the requester's address, not the payer's, so `PaymentRecord.from` is nullable; the ledger records role `requested` (my request) or `received` (somebody else's) and a receipt for a request this vault never held updates nothing — it stays a message in the thread
+- [x] Tests: 23 codec tests (`messaging/payments.test.ts`), 11 new service tests (28 in that file), 6 new UI tests (19 in `ui/messaging-context.test.tsx`, including request → pay → hash-in-thread, decline, shortfall, and an unreadable payment frame), 4 new vault-schema tests for the nullable payer and the v2 → v3 upgrade; 589 in the whole suite
+- [ ] Not done, and named: no refund path, no expiry on a request (a stale request stays payable), the posted hash is **not** confirmed on-chain by the chat itself (the payer's wallet read and the explorer link are the check), no fiat amount, one request at a time, and the note is only as private as the envelope
 
 ### 7. Security write-up — not started
 
@@ -159,6 +164,12 @@ Recorded here as milestones complete, so results are traceable:
   - Bug found and fixed while wiring the UI: both `WalletProvider` and `MessagingProvider` memoized their service on the whole vault document, so _every_ vault write — every message stored — rebuilt the service and its subscriptions. Both now derive from stable primitives (mnemonic, address index, address) instead.
   - React Compiler-era lint notes (these rules are errors here): a callback that closes over a ref cannot live in a memoized context value, and a function that sets state synchronously cannot be called straight from an effect — the providers use `void (async () => { … })()` and derive state during render rather than in an effect.
 
+- **Milestone 6**: 589 tests passing across 30 files (2 more skipped), 44 of them new — `messaging/payments` 23, `messaging/service` 28 (11 new), `ui/messaging-context` 19 (6 new), `vault/schema` 46 (4 new). Whole suite runs in ~36 s on this machine.
+  - Build output: `index` 702.0 kB (222.2 kB gzip), `libsodium-wrappers` 533.9 kB (189.1 kB gzip), the Waku SDK 849.5 kB (258.2 kB gzip), the Waku adapter 2.6 kB, `ccip` 2.9 kB, CSS 6.3 kB (2.0 kB gzip).
+  - Protocol note: the message `kind` sits inside the canonical header (between the ephemeral public key and the timestamp), so it is covered by both the compact signature and the AEAD's associated data. Re-labelling a frame fails to open or fails verification; tests assert both directions.
+  - Codec note: amounts travel as decimal strings (JSON has no bigint), and a request **must** name its chain (`payToChainId`). A body without a chain is refused rather than assumed, which is what keeps a mainnet request from being smuggled into a testnet app.
+  - UI note: the fee is fetched by an effect on the card itself, so Pay stays disabled until the fee is known; the decline path publishes a receipt and a test asserts the fake sender recorded zero submissions.
+
 ## Next step
 
-Milestone 6 (pay-in-chat): send a Sepolia payment request as a chat message, have the recipient confirm it once and pay, then post the transaction hash back into the same thread — reusing the envelope's `payment-request` / `payment-receipt` message kinds and the `payments` records the vault schema already carries.
+Milestone 7 (security write-up): `docs/SECURITY.md` — the threat model for everything built so far (what the vault, the envelope, the wallet and the payment ledger do and do not protect; the three third parties that still learn something: a Waku relay, the RPC provider and the payer's own chain history), the crypto parameter choices with their reasoning, and the known gaps (no forward secrecy, no Store history, the topic deviation, remote-code-free but unaudited dependencies) — plus the "prototype, unaudited, testnet only" statement in the app and the README.

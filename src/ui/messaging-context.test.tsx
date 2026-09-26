@@ -5,22 +5,39 @@ import { describe, expect, it } from 'vitest'
 import {
   decodeIdentity,
   deriveMessagingIdentity,
+  deriveWalletAccount,
   encodeIdentity,
   type HexString,
 } from '../crypto/keys'
 import { EVM_TEST_MNEMONIC } from '../crypto/vectors'
+import { encodePayload, sealMessage } from '../messaging/envelope'
 import { InMemoryNetwork } from '../messaging/in-memory-transport'
-import { MessagingService } from '../messaging/service'
+import { MessagingService, type ReceivedMessage } from '../messaging/service'
 import { contentTopicFor, conversationIdFor } from '../messaging/identity'
-import { UnlockedMessagingHarness } from '../test/ui-harness'
+import { decodePaymentReceiptBody, decodePaymentRequestBody } from '../messaging/payments'
+import {
+  UnlockedMessagingHarness,
+  fakeWalletService,
+  offlineWalletFactory,
+} from '../test/ui-harness'
+import { FakeChain, createFakeSender } from '../wallet/fake-chain'
+import type { WalletFactory } from './wallet-context'
 import { MessagingPanel } from './MessagingPanel'
 
 const CONTACT_KEYS = deriveMessagingIdentity(EVM_TEST_MNEMONIC)
+const CONTACT_ADDRESS = deriveWalletAccount(EVM_TEST_MNEMONIC).address
+const TX_HASH = `0x${'ab'.repeat(32)}` as HexString
 
 /** The panel, over one shared in-memory network. */
-function renderPanel(network = new InMemoryNetwork()) {
+function renderPanel(
+  network = new InMemoryNetwork(),
+  factory: WalletFactory = offlineWalletFactory(),
+) {
   render(
-    <UnlockedMessagingHarness transportFactory={() => network.createTransport('panel')}>
+    <UnlockedMessagingHarness
+      transportFactory={() => network.createTransport('panel')}
+      factory={factory}
+    >
       <MessagingPanel />
     </UnlockedMessagingHarness>,
   )
@@ -211,6 +228,236 @@ describe('conversations', () => {
 
     expect(await screen.findByTestId('messaging-error')).toHaveTextContent(/message/i)
     expect(screen.queryByTestId('message-list')).toBeNull()
+  })
+})
+
+describe('pay-in-chat', () => {
+  /** A raw service standing in for the other side of the chat. */
+  async function contactService(
+    network: InMemoryNetwork,
+    onMessage?: (message: ReceivedMessage) => void,
+  ): Promise<MessagingService> {
+    const service = new MessagingService({
+      transport: network.createTransport('contact'),
+      identity: { privateKey: CONTACT_KEYS.privateKey, publicKey: CONTACT_KEYS.publicKey },
+      onMessage,
+    })
+
+    await service.start()
+    return service
+  }
+
+  it('asks the other side for ETH, keeps the request in the thread and on the wire', async () => {
+    const network = renderPanel()
+    await ready()
+
+    const user = await addContact('Ada')
+    const received: ReceivedMessage[] = []
+    const contact = await contactService(network, (message) => {
+      received.push(message)
+    })
+    await contact.watch(await panelPublicKey())
+
+    await user.type(screen.getByTestId('payment-request-amount'), '0.001')
+    await user.type(screen.getByTestId('payment-request-note'), 'split the faucet drop')
+    await user.click(screen.getByTestId('payment-request-submit'))
+
+    expect(await screen.findByTestId('payment-request-status')).toHaveTextContent(
+      'Asked Ada for 0.001 ETH.',
+    )
+
+    const card = await screen.findByTestId('payment-card')
+    expect(card).toHaveAttribute('data-payment-kind', 'payment-request')
+    expect(screen.getByTestId('payment-status')).toHaveTextContent('Waiting for them to pay.')
+
+    // The contact reads exactly what the panel promised, with their address as
+    // the payee: nothing about the request is lost in the sealing.
+    await waitFor(() => {
+      expect(received).toHaveLength(1)
+    })
+    expect(received[0]?.kind).toBe('payment-request')
+
+    const request = decodePaymentRequestBody(received[0]?.body ?? '')
+    expect(request.amountWei).toBe(1_000_000_000_000_000n)
+    expect(request.note).toBe('split the faucet drop')
+    expect(screen.getByTestId('payment-payto')).toHaveTextContent(request.payTo)
+  })
+
+  it('pays a request in one click and posts the hash back into the thread', async () => {
+    const network = new InMemoryNetwork()
+    const chain = new FakeChain({ balanceWei: 10n ** 18n })
+    const sender = createFakeSender({ hash: TX_HASH })
+
+    renderPanel(network, () => fakeWalletService(chain, sender))
+
+    await ready()
+    await addContact('Ada')
+
+    const received: ReceivedMessage[] = []
+    const contact = await contactService(network, (message) => {
+      received.push(message)
+    })
+    await contact.watch(await panelPublicKey())
+
+    await contact.sendPaymentRequest(await panelPublicKey(), {
+      amountWei: 1_000_000_000_000_000n,
+      payTo: CONTACT_ADDRESS,
+      note: 'split the faucet drop',
+    })
+
+    const card = await screen.findByTestId('payment-card')
+    expect(card).toHaveAttribute('data-payment-kind', 'payment-request')
+
+    // The fee is fetched and shown before the button is usable, so "one
+    // confirmation" is not "one surprise".
+    await waitFor(() => {
+      expect(screen.getByTestId('payment-fee')).toHaveTextContent(/Worst-case fee/)
+    })
+
+    const user = userEvent.setup()
+    const pay = screen.getByTestId('payment-pay')
+    expect(pay).toBeEnabled()
+    await user.click(pay)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('payment-status')).toHaveTextContent('Paid.')
+    })
+
+    expect(sender.sent).toHaveLength(1)
+    expect(sender.sent[0]?.to).toBe(CONTACT_ADDRESS)
+    expect(sender.sent[0]?.valueWei).toBe(1_000_000_000_000_000n)
+
+    // The hash goes back to the requester, sealed like everything else.
+    await waitFor(() => {
+      expect(received).toHaveLength(1)
+    })
+    expect(received[0]?.kind).toBe('payment-receipt')
+
+    const receipt = decodePaymentReceiptBody(received[0]?.body ?? '')
+    expect(receipt.status).toBe('paid')
+    expect(receipt.txHash).toBe(TX_HASH)
+    expect(screen.getByTestId('message-list')).toHaveTextContent(TX_HASH)
+    expect(screen.queryByTestId('payment-error')).toBeNull()
+  })
+
+  it('declines without touching the chain', async () => {
+    const network = new InMemoryNetwork()
+    const chain = new FakeChain({ balanceWei: 10n ** 18n })
+    const sender = createFakeSender({ hash: TX_HASH })
+
+    renderPanel(network, () => fakeWalletService(chain, sender))
+
+    await ready()
+    await addContact('Ada')
+
+    const received: ReceivedMessage[] = []
+    const contact = await contactService(network, (message) => {
+      received.push(message)
+    })
+    await contact.watch(await panelPublicKey())
+
+    await contact.sendPaymentRequest(await panelPublicKey(), {
+      amountWei: 1n,
+      payTo: CONTACT_ADDRESS,
+    })
+
+    await screen.findByTestId('payment-card')
+
+    const user = userEvent.setup()
+    await user.click(screen.getByTestId('payment-decline'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('payment-status')).toHaveTextContent('Declined.')
+    })
+
+    expect(sender.sent).toHaveLength(0)
+
+    await waitFor(() => {
+      expect(received).toHaveLength(1)
+    })
+
+    const receipt = decodePaymentReceiptBody(received[0]?.body ?? '')
+    expect(receipt.status).toBe('declined')
+    expect(receipt.txHash).toBeNull()
+  })
+
+  it('says up front when the wallet cannot cover the amount and the fee', async () => {
+    const network = new InMemoryNetwork()
+    const chain = new FakeChain({ balanceWei: 1n })
+
+    renderPanel(network, () => fakeWalletService(chain, createFakeSender()))
+
+    await ready()
+    await addContact('Ada')
+
+    const contact = await contactService(network)
+    await contact.watch(await panelPublicKey())
+
+    await contact.sendPaymentRequest(await panelPublicKey(), {
+      amountWei: 10n ** 18n,
+      payTo: CONTACT_ADDRESS,
+    })
+
+    await screen.findByTestId('payment-card')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('payment-shortfall')).toBeVisible()
+    })
+    expect(screen.getByTestId('payment-pay')).toBeDisabled()
+  })
+
+  it('renders a receipt that arrived on its own, hash and all', async () => {
+    const network = renderPanel()
+    await ready()
+    await addContact('Ada')
+
+    const contact = await contactService(network)
+    await contact.watch(await panelPublicKey())
+
+    await contact.sendPaymentReceipt(await panelPublicKey(), {
+      requestId: `pay-${'b'.repeat(32)}`,
+      status: 'paid',
+      txHash: TX_HASH,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('payment-receipt-status')).toHaveTextContent(
+        'Ada paid this request.',
+      )
+    })
+    expect(screen.getByTestId('payment-receipt-hash')).toHaveTextContent(TX_HASH)
+    expect(screen.getByRole('link', { name: 'Open in explorer' })).toHaveAttribute(
+      'href',
+      `https://sepolia.etherscan.io/tx/${TX_HASH}`,
+    )
+  })
+
+  it('reports a payment frame it cannot read instead of offering to pay it', async () => {
+    const network = renderPanel()
+    await ready()
+    await addContact('Ada')
+
+    const panelKey = await panelPublicKey()
+    const conversationId = conversationIdFor(panelKey, CONTACT_KEYS.publicKey)
+
+    const service = await contactService(network)
+    await service.watch(panelKey)
+
+    // Signed and sealed by the contact, labelled as a payment, unreadable inside.
+    const payload = await sealMessage({
+      plaintext: 'not a payment at all',
+      kind: 'payment-request',
+      senderPrivateKey: CONTACT_KEYS.privateKey,
+      senderPublicKey: CONTACT_KEYS.publicKey,
+      recipientPublicKey: panelKey,
+      conversationId,
+      sentAt: '2026-09-26T12:00:00.000Z',
+    })
+
+    await network.publish(contentTopicFor(conversationId), encodePayload(payload))
+
+    expect(await screen.findByTestId('messaging-error')).toHaveTextContent(/JSON|payment/i)
+    expect(screen.queryByTestId('payment-card')).toBeNull()
   })
 })
 

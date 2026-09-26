@@ -468,6 +468,32 @@ h3 {
   overflow-wrap: anywhere;
 }
 
+.message--payment {
+  max-width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.payment-form {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.payment {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+}
+
+.payment-line {
+  font-weight: 600;
+}
+
+.payment .wallet-actions {
+  margin-top: 0.35rem;
+}
+
 .field textarea {
   padding: 0.55rem 0.7rem;
   border: 1px solid rgba(148, 163, 184, 0.35);

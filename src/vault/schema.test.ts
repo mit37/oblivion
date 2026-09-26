@@ -377,6 +377,92 @@ describe('migrateDocument', () => {
     ).toThrow(MalformedPayloadError)
   })
 
+  it('keeps a payment request that does not know who will pay (no from)', () => {
+    const document = migrateDocument(
+      validPayload({
+        payments: [
+          {
+            id: 'pay-1',
+            conversationId: 'c',
+            role: 'received',
+            amountWei: '1000000000000000',
+            from: null,
+            to: `0x${'22'.repeat(20)}`,
+            status: 'requested',
+            requestedAt: CREATED_AT,
+          },
+        ],
+      }),
+    )
+
+    expect(document.payments[0]?.from).toBeNull()
+    expect(document.payments[0]?.role).toBe('received')
+  })
+
+  it('reads a missing from as null instead of rejecting the payment', () => {
+    const document = migrateDocument(
+      validPayload({
+        payments: [
+          {
+            id: 'pay-2',
+            conversationId: 'c',
+            role: 'received',
+            amountWei: '1',
+            to: `0x${'22'.repeat(20)}`,
+            status: 'requested',
+            requestedAt: CREATED_AT,
+          },
+        ],
+      }),
+    )
+
+    expect(document.payments[0]?.from).toBeNull()
+  })
+
+  it('upgrades a version 2 document, turning a missing payer into null', () => {
+    const document = migrateDocument(
+      validPayload({
+        schemaVersion: 2,
+        payments: [
+          {
+            id: 'pay-3',
+            conversationId: 'c',
+            role: 'received',
+            amountWei: '5',
+            to: `0x${'22'.repeat(20)}`,
+            status: 'requested',
+            requestedAt: CREATED_AT,
+          },
+        ],
+      }),
+    )
+
+    expect(document.schemaVersion).toBe(VAULT_SCHEMA_VERSION)
+    expect(document.payments[0]?.from).toBeNull()
+    expect(document.payments[0]?.status).toBe('requested')
+  })
+
+  it('rejects a payment whose to is not a string', () => {
+    expect(() =>
+      migrateDocument(
+        validPayload({
+          payments: [
+            {
+              id: 'payment-1',
+              conversationId: 'c',
+              role: 'requested',
+              amountWei: '1',
+              from: null,
+              to: 42,
+              status: 'requested',
+              requestedAt: CREATED_AT,
+            },
+          ],
+        }),
+      ),
+    ).toThrow(MalformedPayloadError)
+  })
+
   it('drops fields it does not understand', () => {
     const document = migrateDocument(
       validPayload({ somethingElse: 'ignored' }),

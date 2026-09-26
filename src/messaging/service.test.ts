@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { deriveMessagingIdentity, type HexString } from '../crypto/keys'
+import { deriveMessagingIdentity, deriveWalletAccount, type HexString } from '../crypto/keys'
+import { bytesToUtf8 } from '../crypto/encoding'
 import { EVM_TEST_MNEMONIC, FIRST_BIP39_TEST_MNEMONIC } from '../crypto/vectors'
+import { MAINNET_CHAIN_ID, MainnetRefusedError, SEPOLIA_CHAIN_ID } from '../wallet/chain'
 import { encodePayload, sealMessage } from './envelope'
-import { MessagingError } from './errors'
+import { MessagingError, NotWatchingError, PaymentError } from './errors'
 import { contentTopicFor, conversationIdFor } from './identity'
 import { InMemoryNetwork } from './in-memory-transport'
+import { decodePaymentReceiptBody, decodePaymentRequestBody } from './payments'
 import { MAX_MESSAGE_LENGTH, MessagingService, type ReceivedMessage } from './service'
 
 const ALICE_KEYS = deriveMessagingIdentity(FIRST_BIP39_TEST_MNEMONIC)
@@ -277,5 +280,201 @@ describe('misbehaviour', () => {
     await service.sendText(BOB_KEYS.publicKey, 'observer here')
 
     expect(onMessage).not.toHaveBeenCalled()
+  })
+})
+
+describe('pay-in-chat', () => {
+  const PAY_TO = deriveWalletAccount(EVM_TEST_MNEMONIC).address
+  const TX_HASH = `0x${'cd'.repeat(32)}` as HexString
+
+  it('carries a request to the other side, kind and amount intact', async () => {
+    const { alice, bob } = await twoPeers()
+
+    const sent = await alice.service.sendPaymentRequest(BOB_KEYS.publicKey, {
+      amountWei: 1_000_000_000_000_000n,
+      payTo: PAY_TO,
+      note: 'split the faucet drop',
+    })
+
+    expect(sent.kind).toBe('payment-request')
+    expect(bob.received).toHaveLength(1)
+    expect(bob.received[0]?.kind).toBe('payment-request')
+
+    const request = decodePaymentRequestBody(bob.received[0]?.body ?? '')
+    expect(request.requestId).toBe(sent.request.requestId)
+    expect(request.amountWei).toBe(1_000_000_000_000_000n)
+    expect(request.payTo).toBe(PAY_TO)
+    expect(request.note).toBe('split the faucet drop')
+    expect(request.payToChainId).toBe(SEPOLIA_CHAIN_ID)
+  })
+
+  it('keeps the amount and the address off the wire', async () => {
+    const { network, alice } = await twoPeers()
+
+    const frames: Uint8Array[] = []
+    const publish = network.publish.bind(network)
+    network.publish = async (topic, bytes) => {
+      frames.push(bytes)
+      await publish(topic, bytes)
+    }
+
+    await alice.service.sendPaymentRequest(BOB_KEYS.publicKey, {
+      amountWei: 1_000_000_000_000_000n,
+      payTo: PAY_TO,
+      note: 'split the faucet drop',
+    })
+
+    const wire = bytesToUtf8(frames[0] ?? new Uint8Array())
+    expect(wire).not.toContain(PAY_TO)
+    expect(wire).not.toContain(PAY_TO.toLowerCase())
+    expect(wire).not.toContain('1000000000000000')
+    expect(wire).not.toContain('split the faucet drop')
+    expect(wire).toContain('payment-request')
+  })
+
+  it('refuses to ask for mainnet money, and publishes nothing', async () => {
+    const { network, alice } = await twoPeers()
+
+    await expect(
+      alice.service.sendPaymentRequest(BOB_KEYS.publicKey, {
+        amountWei: 1n,
+        payTo: PAY_TO,
+        payToChainId: MAINNET_CHAIN_ID,
+      }),
+    ).rejects.toThrow(MainnetRefusedError)
+
+    expect(network.published).toBe(0)
+  })
+
+  it('refuses a request for nothing, and publishes nothing', async () => {
+    const { network, alice } = await twoPeers()
+
+    await expect(
+      alice.service.sendPaymentRequest(BOB_KEYS.publicKey, { amountWei: 0n, payTo: PAY_TO }),
+    ).rejects.toThrow(PaymentError)
+
+    expect(network.published).toBe(0)
+  })
+
+  it('still refuses to ask somebody it is not watching', async () => {
+    const { alice } = await twoPeers()
+
+    await expect(
+      alice.service.sendPaymentRequest(MALLORY_KEYS.publicKey, { amountWei: 1n, payTo: PAY_TO }),
+    ).rejects.toThrow(NotWatchingError)
+  })
+
+  it('carries the receipt back with the transaction hash', async () => {
+    const { alice, bob } = await twoPeers()
+
+    const sent = await alice.service.sendPaymentRequest(BOB_KEYS.publicKey, {
+      amountWei: 5n,
+      payTo: PAY_TO,
+    })
+
+    await bob.service.sendPaymentReceipt(ALICE_KEYS.publicKey, {
+      requestId: sent.request.requestId,
+      status: 'paid',
+      txHash: TX_HASH,
+    })
+
+    expect(alice.received).toHaveLength(1)
+    expect(alice.received[0]?.kind).toBe('payment-receipt')
+
+    const receipt = decodePaymentReceiptBody(alice.received[0]?.body ?? '')
+    expect(receipt.requestId).toBe(sent.request.requestId)
+    expect(receipt.status).toBe('paid')
+    expect(receipt.txHash).toBe(TX_HASH)
+  })
+
+  it('carries a refusal without a hash', async () => {
+    const { alice, bob } = await twoPeers()
+
+    const sent = await alice.service.sendPaymentRequest(BOB_KEYS.publicKey, {
+      amountWei: 5n,
+      payTo: PAY_TO,
+    })
+
+    await bob.service.sendPaymentReceipt(ALICE_KEYS.publicKey, {
+      requestId: sent.request.requestId,
+      status: 'declined',
+    })
+
+    const receipt = decodePaymentReceiptBody(alice.received[0]?.body ?? '')
+    expect(receipt.status).toBe('declined')
+    expect(receipt.txHash).toBeNull()
+  })
+
+  it('refuses a paid receipt with no transaction hash', async () => {
+    const { alice } = await twoPeers()
+
+    await expect(
+      alice.service.sendPaymentReceipt(BOB_KEYS.publicKey, {
+        requestId: `pay-${'a'.repeat(32)}`,
+        status: 'paid',
+      }),
+    ).rejects.toThrow(PaymentError)
+  })
+
+  it('rejects a frame that claims to be a payment but does not parse', async () => {
+    const { network, bob } = await twoPeers()
+
+    // Sealed properly, signed properly, labelled as a payment — and unreadable.
+    const payload = await sealMessage({
+      plaintext: 'not json at all',
+      kind: 'payment-request',
+      senderPrivateKey: ALICE_KEYS.privateKey,
+      senderPublicKey: ALICE_KEYS.publicKey,
+      recipientPublicKey: BOB_KEYS.publicKey,
+      conversationId: CONVERSATION,
+      sentAt: NOW.toISOString(),
+    })
+
+    await network.publish(TOPIC, encodePayload(payload))
+
+    expect(bob.received).toHaveLength(0)
+    expect(bob.rejected).toHaveLength(1)
+    expect(bob.rejected[0]).toBeInstanceOf(PaymentError)
+  })
+
+  it('reads payment-shaped JSON as chat when the kind says chat', async () => {
+    const { network, bob } = await twoPeers()
+    const body = JSON.stringify({ amountWei: '1000', payTo: PAY_TO })
+
+    const payload = await sealMessage({
+      plaintext: body,
+      kind: 'text',
+      senderPrivateKey: ALICE_KEYS.privateKey,
+      senderPublicKey: ALICE_KEYS.publicKey,
+      recipientPublicKey: BOB_KEYS.publicKey,
+      conversationId: CONVERSATION,
+      sentAt: NOW.toISOString(),
+    })
+
+    await network.publish(TOPIC, encodePayload(payload))
+
+    expect(bob.rejected).toHaveLength(0)
+    expect(bob.received[0]?.kind).toBe('text')
+    expect(bob.received[0]?.body).toBe(body)
+  })
+
+  it('will not let a text message be re-labelled as a payment on the wire', async () => {
+    const { network, bob } = await twoPeers()
+
+    const payload = await sealMessage({
+      plaintext: 'just talking',
+      senderPrivateKey: ALICE_KEYS.privateKey,
+      senderPublicKey: ALICE_KEYS.publicKey,
+      recipientPublicKey: BOB_KEYS.publicKey,
+      conversationId: CONVERSATION,
+      sentAt: NOW.toISOString(),
+    })
+
+    // Flip the kind in an otherwise untouched envelope: the header is signed and
+    // used as associated data, so the frame no longer opens.
+    await network.publish(TOPIC, encodePayload({ ...payload, kind: 'payment-request' }))
+
+    expect(bob.received).toHaveLength(0)
+    expect(bob.rejected).toHaveLength(1)
   })
 })

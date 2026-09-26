@@ -234,6 +234,7 @@ describe('wire format', () => {
       conversationId: ALICE_BOB,
       senderPublicKey: `0x02${'00'.repeat(32)}`,
       ephemeralPublicKey: ALICE.publicKey,
+      kind: 'text',
       sentAt: SENT_AT,
       sealed: 'oc1.a.b.c',
       signature: `0x${'ab'.repeat(64)}`,
@@ -266,6 +267,7 @@ describe('headerBytes', () => {
         conversationId: payload.conversationId,
         senderPublicKey: payload.senderPublicKey.toUpperCase().replace('0X', '0x'),
         ephemeralPublicKey: payload.ephemeralPublicKey,
+        kind: payload.kind,
         sentAt: payload.sentAt,
       }),
     )
@@ -280,6 +282,8 @@ describe('headerBytes', () => {
       { ...payload, sentAt: '2027-01-01T00:00:00.000Z' },
       { ...payload, ephemeralPublicKey: BOB.publicKey },
       { ...payload, senderPublicKey: BOB.publicKey },
+      // The kind is authenticated too: a payment cannot be re-labelled as chat.
+      { ...payload, kind: 'payment-request' },
     ]
 
     for (const variant of variations) {

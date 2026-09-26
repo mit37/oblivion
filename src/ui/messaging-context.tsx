@@ -9,10 +9,17 @@ import {
 } from 'react'
 
 import { deriveMessagingIdentity, publicKeyFingerprint, type HexString } from '../crypto/keys'
-import type { ContactRecord, MessageRecord, VaultDocument } from '../vault/schema'
+import type { ContactRecord, MessageRecord, PaymentRecord, VaultDocument } from '../vault/schema'
 import { MessagingError } from '../messaging/errors'
 import { contentTopicFor, conversationIdFor, parseContactIdentity } from '../messaging/identity'
 import { createLocalTransport } from '../messaging/local-network'
+import {
+  decodePaymentBody,
+  type PaymentReceipt,
+  type PaymentReceiptStatus,
+  type PaymentRequest,
+  type PaymentRequestDraft,
+} from '../messaging/payments'
 import { MessagingService, type ReceivedMessage } from '../messaging/service'
 import type { MessageTransport } from '../messaging/transport'
 import { useVault } from './vault-context'
@@ -39,12 +46,31 @@ export interface MessagingContextValue {
   readonly error: string | null
   readonly contacts: readonly ContactRecord[]
   readonly conversations: readonly ConversationView[]
+  /** The pay-in-chat ledger: what was asked for, and how it ended. */
+  readonly payments: readonly PaymentRecord[]
   /** Messages already in the vault that belong to no known contact. */
   readonly orphanMessages: number
   connect: (mode: MessagingTransportMode) => Promise<void>
   addContact: (identity: string, label: string) => Promise<ContactRecord>
   removeContact: (id: string) => Promise<void>
   sendMessage: (contactPublicKey: HexString, body: string) => Promise<void>
+  /** Asks a contact to pay: sealed, published, and recorded in the vault. */
+  requestPayment: (
+    contactPublicKey: HexString,
+    draft: PaymentRequestDraft,
+  ) => Promise<PaymentRequest>
+  /**
+   * Posts the outcome of a request back into the thread. The wallet does the
+   * paying; this only reports what happened, so the chat never holds a key.
+   */
+  settlePayment: (
+    contactPublicKey: HexString,
+    input: {
+      readonly requestId: string
+      readonly status: PaymentReceiptStatus
+      readonly txHash?: HexString | null
+    },
+  ) => Promise<PaymentReceipt>
 }
 
 const MessagingContext = createContext<MessagingContextValue | null>(null)
@@ -72,6 +98,7 @@ export function MessagingProvider({ children, transportFactory }: MessagingProvi
 
   const contacts = useMemo(() => document?.contacts ?? [], [document])
   const messages = useMemo(() => document?.messages ?? [], [document])
+  const payments = useMemo(() => document?.payments ?? [], [document])
 
   const [service, setService] = useState<MessagingService | null>(null)
   const [mode, setMode] = useState<MessagingTransportMode>('local')
@@ -85,17 +112,50 @@ export function MessagingProvider({ children, transportFactory }: MessagingProvi
    */
   const storeInbound = useCallback(
     async (message: ReceivedMessage) => {
-      await update((current) => ({
-        ...current,
-        messages: appendMessage(current, {
-          id: messageId(message.conversationId, message.sentAt, message.body),
-          conversationId: message.conversationId,
-          direction: 'inbound',
-          body: message.body,
-          sentAt: message.sentAt,
-          kind: 'text',
-        }),
-      }))
+      // Already validated on receipt; parsed here to keep the ledger in step with
+      // the thread. `null` means an ordinary chat message.
+      const payment = decodePaymentBody(message.kind, message.body)
+
+      await update((current) => {
+        const stored: VaultDocument = {
+          ...current,
+          messages: appendMessage(current, {
+            id: messageId(message.conversationId, message.sentAt, message.body),
+            conversationId: message.conversationId,
+            direction: 'inbound',
+            body: message.body,
+            sentAt: message.sentAt,
+            kind: message.kind,
+            ...(payment ? { paymentId: paymentIdOf(payment) } : {}),
+          }),
+        }
+
+        if (payment?.kind === 'payment-request') {
+          return {
+            ...stored,
+            payments: upsertPayment(current.payments, {
+              id: payment.request.requestId,
+              conversationId: message.conversationId,
+              // Somebody asked *me* to pay. Their address is the one the request
+              // names; the app still does not know mine from here, and says so.
+              role: 'received',
+              amountWei: payment.request.amountWei.toString(),
+              from: null,
+              to: payment.request.payTo,
+              status: 'requested',
+              requestedAt: message.sentAt,
+            }),
+          }
+        }
+
+        if (payment?.kind === 'payment-receipt') {
+          // Only an existing row is updated: a receipt for a request this vault
+          // never held stays a message in the thread rather than inventing one.
+          return { ...stored, payments: applySettlement(current.payments, payment.receipt) }
+        }
+
+        return stored
+      })
     },
     [update],
   )
@@ -244,6 +304,80 @@ export function MessagingProvider({ children, transportFactory }: MessagingProvi
     [messagingIdentity, service, update],
   )
 
+  const requestPayment = useCallback(
+    async (contactPublicKey: HexString, draft: PaymentRequestDraft) => {
+      if (!messagingIdentity) {
+        throw new MessagingError('transport-not-started', 'unlock the vault first')
+      }
+
+      if (!service) {
+        throw new MessagingError('transport-not-started', 'connect a transport first')
+      }
+
+      const sent = await service.sendPaymentRequest(contactPublicKey, draft)
+
+      await update((current) => ({
+        ...current,
+        messages: appendMessage(current, {
+          id: messageId(sent.conversationId, sent.sentAt, sent.body),
+          conversationId: sent.conversationId,
+          direction: 'outbound',
+          body: sent.body,
+          sentAt: sent.sentAt,
+          kind: 'payment-request',
+          paymentId: sent.request.requestId,
+        }),
+        payments: upsertPayment(current.payments, {
+          id: sent.request.requestId,
+          conversationId: sent.conversationId,
+          role: 'requested',
+          amountWei: sent.request.amountWei.toString(),
+          from: null,
+          to: sent.request.payTo,
+          status: 'requested',
+          requestedAt: sent.sentAt,
+        }),
+      }))
+
+      return sent.request
+    },
+    [messagingIdentity, service, update],
+  )
+
+  const settlePayment = useCallback(
+    async (
+      contactPublicKey: HexString,
+      input: {
+        readonly requestId: string
+        readonly status: PaymentReceiptStatus
+        readonly txHash?: HexString | null
+      },
+    ) => {
+      if (!service) {
+        throw new MessagingError('transport-not-started', 'connect a transport first')
+      }
+
+      const sent = await service.sendPaymentReceipt(contactPublicKey, input)
+
+      await update((current) => ({
+        ...current,
+        messages: appendMessage(current, {
+          id: messageId(sent.conversationId, sent.sentAt, sent.body),
+          conversationId: sent.conversationId,
+          direction: 'outbound',
+          body: sent.body,
+          sentAt: sent.sentAt,
+          kind: 'payment-receipt',
+          paymentId: input.requestId,
+        }),
+        payments: applySettlement(current.payments, sent.receipt),
+      }))
+
+      return sent.receipt
+    },
+    [service, update],
+  )
+
   const value = useMemo<MessagingContextValue | null>(() => {
     if (!messagingIdentity) return null
 
@@ -269,11 +403,14 @@ export function MessagingProvider({ children, transportFactory }: MessagingProvi
       error,
       contacts,
       conversations,
+      payments,
       orphanMessages: messages.filter((message) => !known.has(message.conversationId)).length,
       connect,
       addContact,
       removeContact,
       sendMessage,
+      requestPayment,
+      settlePayment,
     }
   }, [
     addContact,
@@ -285,8 +422,11 @@ export function MessagingProvider({ children, transportFactory }: MessagingProvi
     messages,
     messagingIdentity,
     mode,
+    payments,
     removeContact,
+    requestPayment,
     sendMessage,
+    settlePayment,
   ])
 
   if (!value) return null
@@ -303,6 +443,41 @@ async function loadWakuTransport(): Promise<MessageTransport> {
 function appendMessage(current: VaultDocument, record: MessageRecord): readonly MessageRecord[] {
   if (current.messages.some((existing) => existing.id === record.id)) return current.messages
   return [...current.messages, record]
+}
+
+/** Adds a payment row, or merges into the one already there for that id. */
+function upsertPayment(
+  current: readonly PaymentRecord[],
+  record: PaymentRecord,
+): readonly PaymentRecord[] {
+  if (!current.some((entry) => entry.id === record.id)) return [...current, record]
+
+  return current.map((entry) => (entry.id === record.id ? { ...entry, ...record } : entry))
+}
+
+/**
+ * Applies a receipt to the ledger row it refers to, and only that row: a
+ * payment id nobody is holding is left alone rather than conjured into a record
+ * with invented addresses.
+ */
+function applySettlement(
+  current: readonly PaymentRecord[],
+  receipt: PaymentReceipt,
+): readonly PaymentRecord[] {
+  return current.map((entry) => {
+    if (entry.id !== receipt.requestId) return entry
+
+    return {
+      ...entry,
+      status: receipt.status,
+      ...(receipt.txHash ? { txHash: receipt.txHash } : {}),
+      ...(receipt.status === 'paid' ? { paidAt: receipt.settledAt } : {}),
+    }
+  })
+}
+
+function paymentIdOf(payment: NonNullable<ReturnType<typeof decodePaymentBody>>): string {
+  return payment.kind === 'payment-request' ? payment.request.requestId : payment.receipt.requestId
 }
 
 function messageId(conversationId: string, sentAt: string, body: string): string {

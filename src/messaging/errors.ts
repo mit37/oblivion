@@ -1,6 +1,7 @@
 export type MessagingErrorCode =
   | 'invalid-identity'
   | 'invalid-envelope'
+  | 'invalid-payment'
   | 'wrong-conversation'
   | 'unknown-sender'
   | 'self-contact'
@@ -29,6 +30,16 @@ export class InvalidIdentityError extends MessagingError {
 export class InvalidEnvelopeError extends MessagingError {
   constructor(message: string) {
     super('invalid-envelope', message)
+  }
+}
+
+/**
+ * A payment request or receipt that does not hold up: a bad amount, address or
+ * id, or a chain this app refuses. The message is not shown as payable.
+ */
+export class PaymentError extends MessagingError {
+  constructor(message: string) {
+    super('invalid-payment', message)
   }
 }
 

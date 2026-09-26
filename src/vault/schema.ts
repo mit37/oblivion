@@ -17,8 +17,9 @@ import type { TokenInfo } from '../wallet/types'
 /**
  * 1 → identity, settings, contacts, messages, payments.
  * 2 → adds the watched ERC-20 token list.
+ * 3 → a payment request may not know who will pay yet (`from` is nullable).
  */
-export const VAULT_SCHEMA_VERSION = 2
+export const VAULT_SCHEMA_VERSION = 3
 
 /** Auto-lock choices offered in Settings, in minutes. */
 export const AUTO_LOCK_CHOICES_MINUTES = [1, 5, 15, 60] as const
@@ -60,11 +61,18 @@ export interface MessageRecord {
 }
 
 export interface PaymentRecord {
+  /** The `pay-…` id both sides quote back and forth. */
   readonly id: string
   readonly conversationId: string
+  /** `requested` — I asked to be paid. `received` — somebody asked me to pay. */
   readonly role: 'requested' | 'received'
   readonly amountWei: string
-  readonly from: HexString
+  /**
+   * The other side's address, once it is known. A request does not carry the
+   * payer's address — only the requester's — so this stays null until the
+   * payment settles and can legitimately remain null forever.
+   */
+  readonly from: HexString | null
   readonly to: HexString
   readonly status: 'requested' | 'paid' | 'declined'
   readonly requestedAt: string
@@ -240,7 +248,10 @@ function asPaymentRecord(value: unknown): PaymentRecord {
     conversationId: asString(record.conversationId, 'payment.conversationId'),
     role,
     amountWei: asString(record.amountWei, 'payment.amountWei'),
-    from: asString(record.from, 'payment.from') as HexString,
+    from:
+      record.from === null || record.from === undefined
+        ? null
+        : (asString(record.from, 'payment.from') as HexString),
     to: asString(record.to, 'payment.to') as HexString,
     status,
     requestedAt: asIsoString(record.requestedAt, 'payment.requestedAt'),

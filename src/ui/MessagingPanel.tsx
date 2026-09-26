@@ -1,7 +1,16 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { formatGwei } from 'viem'
 
-import type { ContactRecord, MessageRecord } from '../vault/schema'
+import type { ContactRecord, MessageRecord, PaymentRecord } from '../vault/schema'
+import {
+  decodePaymentBody,
+  MAX_PAYMENT_NOTE_LENGTH,
+  type PaymentPayload,
+} from '../messaging/payments'
 import { MAX_MESSAGE_LENGTH } from '../messaging/service'
+import { explorerTransactionUrl } from '../wallet/chain'
+import { formatEth, parseEthInput, shortenAddress } from '../wallet/format'
+import type { FeeEstimate } from '../wallet/types'
 import { CopyButton } from './CopyButton'
 import { QrCode } from './QrCode'
 import {
@@ -9,6 +18,7 @@ import {
   useMessaging,
   type MessagingTransportMode,
 } from './messaging-context'
+import { describeWalletError, useWallet } from './wallet-context'
 
 /**
  * Messages. The connection status is part of the furniture, not a detail: with
@@ -334,13 +344,7 @@ function ConversationCard({
       ) : (
         <ul className="message-list" data-testid="message-list">
           {conversation.messages.map((message) => (
-            <li key={message.id} className={`message message--${message.direction}`}>
-              <span className="message-meta">
-                {message.direction === 'outbound' ? 'You' : conversation.contact.label} ·{' '}
-                {message.sentAt.slice(11, 19)}Z
-              </span>
-              <span className="message-body">{message.body}</span>
-            </li>
+            <MessageRow key={message.id} message={message} contact={conversation.contact} />
           ))}
         </ul>
       )}
@@ -372,6 +376,8 @@ function ConversationCard({
         </button>
       </form>
 
+      <PaymentRequestForm contact={conversation.contact} />
+
       {error ? (
         <p className="form-error" role="alert">
           {error}
@@ -379,6 +385,423 @@ function ConversationCard({
       ) : null}
     </section>
   )
+}
+
+/** One message in the thread: ordinary text, or a payment card. */
+function MessageRow({
+  message,
+  contact,
+}: {
+  readonly message: MessageRecord
+  readonly contact: ContactRecord
+}) {
+  const payment = readPayment(message)
+
+  return (
+    <li
+      key={message.id}
+      className={`message message--${message.direction}${payment ? ' message--payment' : ''}`}
+    >
+      <span className="message-meta">
+        {message.direction === 'outbound' ? 'You' : contact.label} · {message.sentAt.slice(11, 19)}Z
+      </span>
+
+      {payment ? (
+        <PaymentCard payment={payment} contact={contact} direction={message.direction} />
+      ) : (
+        <span className="message-body">{message.body}</span>
+      )}
+    </li>
+  )
+}
+
+/** A stored payment body, or `null` for text and for anything unreadable. */
+function readPayment(message: MessageRecord): PaymentPayload | null {
+  if (message.kind === 'text') return null
+
+  try {
+    return decodePaymentBody(message.kind, message.body)
+  } catch {
+    // A payment frame that does not parse is shown as what it literally is
+    // rather than as a button that might pay somebody.
+    return null
+  }
+}
+
+/** Asks the other side for testnet ETH, naming this wallet as the payee. */
+function PaymentRequestForm({ contact }: { readonly contact: ContactRecord }) {
+  const { connection, requestPayment } = useMessaging()
+  const { address, canSend } = useWallet()
+
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [status, setStatus] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function handleRequest(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault()
+    setStatus(null)
+    setError(null)
+    setBusy(true)
+
+    try {
+      const request = await requestPayment(contact.publicKey, {
+        amountWei: parseEthInput(amount),
+        payTo: address,
+        note,
+      })
+
+      setStatus(`Asked ${contact.label} for ${formatEth(request.amountWei)} ETH.`)
+      setAmount('')
+      setNote('')
+    } catch (cause) {
+      setError(describeMessagingError(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form
+      className="stack payment-form"
+      data-testid="payment-request-form"
+      onSubmit={(event) => {
+        void handleRequest(event)
+      }}
+    >
+      <h4>Request testnet ETH</h4>
+      <p className="muted small">
+        The request travels sealed like any other message, and it names the address you want paying
+        — this wallet, on Sepolia. Nothing moves until they confirm.
+      </p>
+
+      <label className="field">
+        <span>Amount (ETH)</span>
+        <input
+          value={amount}
+          inputMode="decimal"
+          placeholder="0.001"
+          autoComplete="off"
+          data-testid="payment-request-amount"
+          onChange={(event) => {
+            setAmount(event.target.value)
+          }}
+        />
+      </label>
+
+      <label className="field">
+        <span>What is it for (optional)</span>
+        <input
+          value={note}
+          maxLength={MAX_PAYMENT_NOTE_LENGTH}
+          placeholder="Split the faucet drops"
+          autoComplete="off"
+          data-testid="payment-request-note"
+          onChange={(event) => {
+            setNote(event.target.value)
+          }}
+        />
+      </label>
+
+      <button
+        type="submit"
+        className="button"
+        disabled={busy || !canSend || connection !== 'online' || amount.trim().length === 0}
+        data-testid="payment-request-submit"
+      >
+        {busy ? 'Sealing…' : 'Request payment'}
+      </button>
+
+      {status ? (
+        <p className="form-note" role="status" data-testid="payment-request-status">
+          {status}
+        </p>
+      ) : null}
+
+      {error ? (
+        <p className="form-error" role="alert" data-testid="payment-request-error">
+          {error}
+        </p>
+      ) : null}
+    </form>
+  )
+}
+
+/**
+ * A payment request or receipt, inside the thread.
+ *
+ * Reading a request is free; paying is one click, and the fee is fetched and
+ * shown *before* that click rather than after it, so "one confirmation" never
+ * means "one surprise". The wallet does the signing — this card holds no key.
+ */
+function PaymentCard({
+  payment,
+  contact,
+  direction,
+}: {
+  readonly payment: PaymentPayload
+  readonly contact: ContactRecord
+  readonly direction: MessageRecord['direction']
+}) {
+  const { payments, settlePayment } = useMessaging()
+  const { address, balanceWei, canSend, estimateSend, send } = useWallet()
+
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const requestId =
+    payment.kind === 'payment-request' ? payment.request.requestId : payment.receipt.requestId
+  const record = payments.find((entry) => entry.id === requestId) ?? null
+
+  // The ledger is the source of truth once a receipt arrives; before that, an
+  // inbound request is simply "waiting for you".
+  const status = record?.status ?? 'requested'
+  const payable =
+    payment.kind === 'payment-request' && direction === 'inbound' && status === 'requested'
+
+  return (
+    <span className="payment" data-testid="payment-card" data-payment-kind={payment.kind}>
+      {payment.kind === 'payment-request' ? (
+        <PaymentRequestBody
+          request={payment.request}
+          status={status}
+          record={record}
+          direction={direction}
+          contact={contact}
+          payable={payable}
+          error={error}
+          busy={busy}
+          address={address}
+          balanceWei={balanceWei}
+          canSend={canSend}
+          estimateSend={estimateSend}
+          send={send}
+          onError={setError}
+          onBusy={setBusy}
+          settlePayment={settlePayment}
+        />
+      ) : (
+        <>
+          <span className="payment-line" data-testid="payment-receipt-status">
+            {payment.receipt.status === 'paid'
+              ? `${contact.label} paid this request.`
+              : `${contact.label} declined this request.`}
+          </span>
+          {payment.receipt.txHash ? (
+            <>
+              <span className="mono small" data-testid="payment-receipt-hash">
+                {payment.receipt.txHash}
+              </span>
+              <a
+                className="button"
+                href={explorerTransactionUrl(payment.receipt.txHash)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open in explorer
+              </a>
+            </>
+          ) : null}
+        </>
+      )}
+    </span>
+  )
+}
+
+/**
+ * The request half. Split out so the fee effect lives with the fields it reads
+ * and the parent card stays a switch on the payload kind.
+ */
+function PaymentRequestBody({
+  request,
+  status,
+  record,
+  direction,
+  contact,
+  payable,
+  error,
+  busy,
+  address,
+  balanceWei,
+  canSend,
+  estimateSend,
+  send,
+  onError,
+  onBusy,
+  settlePayment,
+}: {
+  readonly request: Extract<PaymentPayload, { kind: 'payment-request' }>['request']
+  readonly status: PaymentRecord['status']
+  readonly record: PaymentRecord | null
+  readonly direction: MessageRecord['direction']
+  readonly contact: ContactRecord
+  readonly payable: boolean
+  readonly error: string | null
+  readonly busy: boolean
+  readonly address: string
+  readonly balanceWei: bigint | null
+  readonly canSend: boolean
+  readonly estimateSend: ReturnType<typeof useWallet>['estimateSend']
+  readonly send: ReturnType<typeof useWallet>['send']
+  readonly onError: (message: string | null) => void
+  readonly onBusy: (busy: boolean) => void
+  readonly settlePayment: ReturnType<typeof useMessaging>['settlePayment']
+}) {
+  const [fee, setFee] = useState<FeeEstimate | null>(null)
+
+  useEffect(() => {
+    if (!payable || !canSend) return
+
+    let cancelled = false
+
+    void (async () => {
+      try {
+        const estimate = await estimateSend({
+          from: address as `0x${string}`,
+          to: request.payTo,
+          valueWei: request.amountWei,
+        })
+
+        if (!cancelled) setFee(estimate)
+      } catch (cause) {
+        if (!cancelled) setFee(null)
+        if (!cancelled) onError(describeWalletError(cause).message)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [address, canSend, estimateSend, onError, payable, request.amountWei, request.payTo])
+
+  const short = balanceWei !== null && fee !== null && balanceWei < fee.totalRequiredWei
+
+  async function handlePay(): Promise<void> {
+    onError(null)
+    onBusy(true)
+
+    try {
+      const sent = await send({
+        from: address as `0x${string}`,
+        to: request.payTo,
+        valueWei: request.amountWei,
+      })
+
+      await settlePayment(contact.publicKey, {
+        requestId: request.requestId,
+        status: 'paid',
+        txHash: sent.hash,
+      })
+    } catch (cause) {
+      onError(describeWalletError(cause).message)
+    } finally {
+      onBusy(false)
+    }
+  }
+
+  async function handleDecline(): Promise<void> {
+    onError(null)
+    onBusy(true)
+
+    try {
+      await settlePayment(contact.publicKey, { requestId: request.requestId, status: 'declined' })
+    } catch (cause) {
+      onError(describeMessagingError(cause))
+    } finally {
+      onBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <span className="payment-line">
+        {direction === 'outbound'
+          ? `You asked ${contact.label} for ${formatEth(request.amountWei)} ETH.`
+          : `${contact.label} asks for ${formatEth(request.amountWei)} ETH.`}
+      </span>
+
+      <span className="mono small" data-testid="payment-payto">
+        {request.payTo}
+      </span>
+
+      {request.note.length > 0 ? <span className="muted small">“{request.note}”</span> : null}
+
+      <span className="muted small" data-testid="payment-status">
+        {describePaymentStatus(status, direction)}
+        {record?.txHash ? ` · ${shortenAddress(record.txHash)}` : ''}
+      </span>
+
+      {record?.txHash ? (
+        <a
+          className="button"
+          href={explorerTransactionUrl(record.txHash)}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open in explorer
+        </a>
+      ) : null}
+
+      {payable ? (
+        <>
+          <span className="muted small" data-testid="payment-fee">
+            {fee === null
+              ? 'Checking what the fee would be…'
+              : `Worst-case fee ${formatEth(fee.estimatedFeeWei, { maxDecimals: 9 })} ETH (${fee.gas.toString()} gas at up to ${formatGwei(fee.maxFeePerGasWei)} gwei), so ${formatEth(fee.totalRequiredWei, { maxDecimals: 9 })} ETH has to be available.`}
+          </span>
+
+          <span className="wallet-actions">
+            <button
+              type="button"
+              className="button button--primary"
+              data-testid="payment-pay"
+              disabled={busy || !canSend || fee === null || short}
+              onClick={() => {
+                void handlePay()
+              }}
+            >
+              {busy ? 'Paying…' : `Pay ${formatEth(request.amountWei)} ETH`}
+            </button>
+            <button
+              type="button"
+              className="button"
+              data-testid="payment-decline"
+              disabled={busy}
+              onClick={() => {
+                void handleDecline()
+              }}
+            >
+              Decline
+            </button>
+          </span>
+
+          {short ? (
+            <span className="muted small" data-testid="payment-shortfall">
+              This wallet does not hold enough testnet ETH to cover the amount and the worst-case
+              fee. A Sepolia faucet can send more to {shortenAddress(address)}.
+            </span>
+          ) : null}
+        </>
+      ) : null}
+
+      {error ? (
+        <span className="form-error" role="alert" data-testid="payment-error">
+          {error}
+        </span>
+      ) : null}
+    </>
+  )
+}
+
+function describePaymentStatus(
+  status: PaymentRecord['status'],
+  direction: MessageRecord['direction'],
+) {
+  if (status === 'paid') return 'Paid.'
+  if (status === 'declined') return 'Declined.'
+
+  return direction === 'outbound' ? 'Waiting for them to pay.' : 'Waiting for you to pay.'
 }
 
 function describeConnection(mode: MessagingTransportMode, connection: string): string {

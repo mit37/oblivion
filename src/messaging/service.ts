@@ -7,9 +7,26 @@
  * the vault stays the single place that holds plaintext at rest.
  */
 import type { HexString } from '../crypto/keys'
-import { decodePayload, encodePayload, openMessage, sealMessage } from './envelope'
+import {
+  decodePayload,
+  encodePayload,
+  openMessage,
+  sealMessage,
+  type MessageKind,
+} from './envelope'
 import { MessagingError, NotWatchingError } from './errors'
 import { contentTopicFor, conversationIdFor } from './identity'
+import {
+  createPaymentReceipt,
+  createPaymentRequest,
+  decodePaymentReceiptBody,
+  decodePaymentRequestBody,
+  encodePaymentReceiptBody,
+  encodePaymentRequestBody,
+  type PaymentReceipt,
+  type PaymentRequest,
+  type PaymentRequestDraft,
+} from './payments'
 import type { MessageHandler, MessageTransport } from './transport'
 
 /** Longest body a single message may carry (characters, not bytes). */
@@ -23,6 +40,8 @@ export interface MessagingKeypair {
 export interface InboundMessage {
   readonly conversationId: string
   readonly senderPublicKey: HexString
+  /** `text` carries words; the payment kinds carry JSON (see `payments.ts`). */
+  readonly kind: MessageKind
   readonly body: string
   readonly sentAt: string
 }
@@ -33,6 +52,18 @@ export interface SentMessage extends InboundMessage {
 
 export interface ReceivedMessage extends InboundMessage {
   readonly direction: 'inbound'
+}
+
+/** A request this identity just sent, already parsed for the caller to store. */
+export interface SentPaymentRequest extends SentMessage {
+  readonly kind: 'payment-request'
+  readonly request: PaymentRequest
+}
+
+/** A receipt this identity just sent, already parsed for the caller to store. */
+export interface SentPaymentReceipt extends SentMessage {
+  readonly kind: 'payment-receipt'
+  readonly receipt: PaymentReceipt
 }
 
 export interface MessagingServiceOptions {
@@ -157,11 +188,68 @@ export class MessagingService {
    * watched first, so "stop listening to this person" means what it says.
    */
   async sendText(contactPublicKey: HexString, body: string): Promise<SentMessage> {
+    return this.sealAndPublish(contactPublicKey, assertBody(body), 'text')
+  }
+
+  /**
+   * Asks a contact for ETH. The request is validated here (address, amount,
+   * chain) before it is sealed, so a request that could never be paid is never
+   * put on the wire.
+   */
+  async sendPaymentRequest(
+    contactPublicKey: HexString,
+    draft: PaymentRequestDraft,
+  ): Promise<SentPaymentRequest> {
+    const request = createPaymentRequest(draft)
+    const sent = await this.sealAndPublish(
+      contactPublicKey,
+      encodePaymentRequestBody(request),
+      'payment-request',
+    )
+
+    return { ...sent, kind: 'payment-request', request }
+  }
+
+  /** Posts the outcome back into the thread — the transaction hash, or a refusal. */
+  async sendPaymentReceipt(
+    contactPublicKey: HexString,
+    input: {
+      readonly requestId: string
+      readonly status: PaymentReceipt['status']
+      readonly txHash?: HexString | null
+      readonly settledAt?: string
+    },
+  ): Promise<SentPaymentReceipt> {
+    const receipt = createPaymentReceipt({
+      requestId: input.requestId,
+      status: input.status,
+      txHash: input.txHash ?? null,
+      settledAt: input.settledAt ?? this.now().toISOString(),
+    })
+
+    const sent = await this.sealAndPublish(
+      contactPublicKey,
+      encodePaymentReceiptBody(receipt),
+      'payment-receipt',
+    )
+
+    return { ...sent, kind: 'payment-receipt', receipt }
+  }
+
+  /**
+   * The one path out: watch check, seal, sign, publish. Every kind leaves the
+   * same way, so no kind can skip the check that the contact is being listened
+   * to, and none can publish unsealed bytes.
+   */
+  private async sealAndPublish(
+    contactPublicKey: HexString,
+    plaintext: string,
+    kind: MessageKind,
+  ): Promise<SentMessage> {
     if (!this.started) {
       throw new MessagingError('transport-not-started', 'start the messaging service first')
     }
 
-    const text = assertBody(body)
     const conversationId = conversationIdFor(this.identity.publicKey, contactPublicKey)
 
     if (!this.watched.has(conversationId)) {
@@ -171,7 +259,8 @@ export class MessagingService {
     const sentAt = this.now().toISOString()
 
     const payload = await sealMessage({
-      plaintext: text,
+      plaintext,
+      kind,
       senderPrivateKey: this.identity.privateKey,
       senderPublicKey: this.identity.publicKey,
       recipientPublicKey: contactPublicKey,
@@ -184,7 +273,8 @@ export class MessagingService {
     return {
       conversationId,
       senderPublicKey: this.identity.publicKey,
-      body: text,
+      kind,
+      body: plaintext,
       sentAt,
       direction: 'outbound',
     }
@@ -222,7 +312,10 @@ export class MessagingService {
     const message: ReceivedMessage = {
       conversationId,
       senderPublicKey: opened.senderPublicKey,
-      body: assertBody(opened.plaintext),
+      kind: opened.kind,
+      // A payment body is checked here as well as at render time: a frame that
+      // claims to be a payment but does not parse is rejected, not displayed.
+      body: assertBodyForKind(opened.kind, opened.plaintext),
       sentAt: opened.sentAt,
       direction: 'inbound',
     }
@@ -252,6 +345,20 @@ export function assertBody(body: string): string {
       `a message body cannot exceed ${MAX_MESSAGE_LENGTH} characters`,
     )
   }
+
+  return body
+}
+
+/**
+ * Checks a body against the kind that was signed for it, and returns it
+ * unchanged so the caller can store exactly what arrived. Text is checked for
+ * length; a payment payload must validate as JSON with usable fields.
+ */
+export function assertBodyForKind(kind: MessageKind, plaintext: string): string {
+  const body = assertBody(plaintext)
+
+  if (kind === 'payment-request') decodePaymentRequestBody(body)
+  if (kind === 'payment-receipt') decodePaymentReceiptBody(body)
 
   return body
 }

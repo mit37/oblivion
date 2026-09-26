@@ -11,7 +11,7 @@ A privacy-first messenger and wallet prototype: Waku end-to-end encrypted messag
 [![CI](https://github.com/mit37/oblivion/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mit37/oblivion/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-> **Build status — milestone 5 of 8 is complete.** The crypto core, the encrypted vault, the Sepolia wallet and encrypted messaging are built and tested, with a working app: create a vault, write down the recovery phrase, confirm three words, unlock, auto-lock, change the password, reveal the phrase or delete the vault — receive testnet ETH at a QR, send it with the fee shown before signing, scan recent activity, watch an ERC-20 — and exchange an identity string, add a contact, and trade sealed direct messages over the real Waku network. Two browsers on different origins, each with its own vault and its own key, computed the same conversation id unaided and exchanged messages both ways. Pay-in-chat and the security write-up are milestones 6–8. Progress and evidence live in [`docs/PLAN.md`](docs/PLAN.md).
+> **Build status — milestone 6 of 8 is complete.** The crypto core, the encrypted vault, the Sepolia wallet, encrypted messaging and pay-in-chat are built and tested, with a working app: create a vault, write down the recovery phrase, confirm three words, unlock, auto-lock, change the password, reveal the phrase or delete the vault — receive testnet ETH at a QR, send it with the fee shown before signing, scan recent activity, watch an ERC-20 — exchange an identity string, add a contact, trade sealed direct messages over the real Waku network, and **ask for testnet ETH inside the thread, pay it in one click and post the transaction hash back into the same conversation**. Two browsers on different origins, each with its own vault and its own key, computed the same conversation id unaided and exchanged messages both ways. The security write-up and the release polish are milestones 7–8. Progress and evidence live in [`docs/PLAN.md`](docs/PLAN.md).
 
 ## The thirty-second version
 
@@ -23,18 +23,20 @@ The wallet is real: a viem client talks to a public Sepolia endpoint (no API key
 
 The chat is real too, which means the network is real: the app runs a Waku light node (LightPush to send, Filter to receive), and every message is sealed with a **fresh key pair per message** and signed over its own header — so the transport, a relay or a peer that happens to be listening only ever sees opaque bytes on a topic it cannot tie to a wallet address. Neither side has to be told the conversation id: it is a hash of both public keys, sorted, so two strangers reach the same topic independently. And nothing in either browser holds the other side's plaintext: messages live only in the encrypted vault, at rest, on the machine that read them.
 
+Pay-in-chat is the same envelope doing a second job: one side seals a Sepolia payment request into the thread, the other sees the amount, the payee and the worst-case fee before it commits, pays with one click from its own wallet, and the transaction hash comes back as a receipt in the same conversation. A request that names mainnet is refused before it is ever published, and a hash that arrives is shown as the payer's claim — with the explorer link right next to it.
+
 ## What's in it
 
-| Capability                                                                                     | Status         |
-| ---------------------------------------------------------------------------------------------- | -------------- |
-| App shell, CI, static GitHub Pages deploy                                                      | ✅ milestone 1 |
-| Crypto core: Argon2id KDF, XChaCha20-Poly1305 AEAD, BIP-39/44 derivation, signatures           | ✅ milestone 2 |
-| Encrypted vault: create / unlock / lock / re-wrap, IndexedDB, auto-lock, backup + confirm flow | ✅ milestone 3 |
-| Sepolia wallet: balance, receive (QR), send, history, ERC-20 view, mainnet refusal             | ✅ milestone 4 |
-| Waku 1:1 end-to-end encrypted messaging: identity exchange, contacts, sealed chat, history     | ✅ milestone 5 |
-| Pay-in-chat payment requests                                                                   | ⏳ milestone 6 |
-| Security write-up (`docs/SECURITY.md` threat model)                                            | ⏳ milestone 7 |
-| Demo recording + `v2.0.0` tag                                                                  | ⏳ milestone 8 |
+| Capability                                                                                          | Status         |
+| --------------------------------------------------------------------------------------------------- | -------------- |
+| App shell, CI, static GitHub Pages deploy                                                           | ✅ milestone 1 |
+| Crypto core: Argon2id KDF, XChaCha20-Poly1305 AEAD, BIP-39/44 derivation, signatures                | ✅ milestone 2 |
+| Encrypted vault: create / unlock / lock / re-wrap, IndexedDB, auto-lock, backup + confirm flow      | ✅ milestone 3 |
+| Sepolia wallet: balance, receive (QR), send, history, ERC-20 view, mainnet refusal                  | ✅ milestone 4 |
+| Waku 1:1 end-to-end encrypted messaging: identity exchange, contacts, sealed chat, history          | ✅ milestone 5 |
+| Pay-in-chat payment requests: sealed request in the thread, one-click Sepolia pay, hash posted back | ✅ milestone 6 |
+| Security write-up (`docs/SECURITY.md` threat model)                                                 | ⏳ milestone 7 |
+| Demo recording + `v2.0.0` tag                                                                       | ⏳ milestone 8 |
 
 ## Results
 
@@ -42,20 +44,21 @@ Every number below was produced by this repo on 2026-09-26 (Node 24.20.0, Window
 
 | Measurement                                              | Value                                                | Command                                                                         |
 | -------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Unit tests (Vitest)                                      | 545 passing, 28 files (2 more skipped), ~31 s        | `npm test`                                                                      |
+| Unit tests (Vitest)                                      | 589 passing, 30 files (2 more skipped), ~36 s        | `npm test`                                                                      |
 | - crypto module                                          | 175 tests                                            | `npx vitest run src/crypto`                                                     |
-| - vault module                                           | 136 tests                                            | `npx vitest run src/vault`                                                      |
+| - vault module                                           | 140 tests                                            | `npx vitest run src/vault`                                                      |
 | - wallet engine                                          | 88 tests                                             | `npx vitest run src/wallet`                                                     |
-| - messaging module                                       | 64 tests (2 live tests skipped unless opted in)      | `npx vitest run src/messaging`                                                  |
-| - app + UI (wallet, QR and chat panels)                  | 82 tests                                             | `npx vitest run src/App.test.tsx src/ui`                                        |
-| End-to-end (Playwright, Chromium, built app)             | 2 passing (4.6 s)                                    | `npm run test:e2e`                                                              |
+| - messaging module                                       | 98 tests (2 live tests skipped unless opted in)      | `npx vitest run src/messaging`                                                  |
+| - app + UI (wallet, QR and chat panels)                  | 88 tests                                             | `npx vitest run src/App.test.tsx src/ui`                                        |
+| End-to-end (Playwright, Chromium, built app)             | 2 passing (5.2 s)                                    | `npm run test:e2e`                                                              |
 | Live Waku: a light node carries one transport frame      | 7.1 s (peer discovery included)                      | `WAKU_LIVE=1 npx vitest run --environment node src/messaging/waku.live.test.ts` |
 | Live Waku: two light nodes trade a sealed direct message | 10.4 s (peer discovery included)                     | (same command)                                                                  |
-| Production bundle, app chunk                             | 690.0 kB (219.5 kB gzip)                             | `npm run build`                                                                 |
+| Production bundle, app chunk                             | 702.0 kB (222.2 kB gzip)                             | `npm run build`                                                                 |
 | Production bundle, lazily loaded libsodium chunk         | 533.9 kB (189.1 kB gzip)                             | `npm run build`                                                                 |
 | Production bundle, lazily loaded Waku SDK chunk          | 849.5 kB (258.2 kB gzip)                             | `npm run build`                                                                 |
 | Production bundle, Waku adapter chunk                    | 2.6 kB (1.1 kB gzip)                                 | `npm run build`                                                                 |
 | Argon2id at the default `interactive` profile            | ~0.41 s per derivation                               | `npx vitest run src/crypto/kdf.test.ts`                                         |
+| Pay-in-chat loop in the UI (ask → one click → hash back) | 1.0 s per run (in-memory network + fake chain)       | `npx vitest run src/ui/messaging-context.test.tsx`                              |
 | Fee shown for a 0.001 ETH send at a 20 gwei gas price    | 0.00084 ETH (worst case, 21 000 gas × a 40 gwei cap) | `npx playwright test e2e/wallet.spec.ts`                                        |
 
 The two live Waku figures are real timings against the public network from this one machine, and they will differ anywhere else — Waku's own peer discovery dominates them. The wallet's fee figure is deliberately a _stubbed_ endpoint's response, so it is reproducible in CI without outbound access. Both live tests are opt-in for that reason: CI never reaches the network, and never loads the Waku SDK at all.
@@ -77,12 +80,13 @@ UI (React 19 + TypeScript + Vite)
  │                     with the service that produced them, so a locked vault shows nothing stale
  ├─ WalletPanel        balance, receive QR, fee review + send, history scan, ERC-20 list
  ├─ MessagingProvider  chats out over a transport (local or Waku); writes every arrival into the vault
- ├─ MessagingPanel     chat identity + QR, contacts, the thread, the connection state, the composer
+ ├─ MessagingPanel     chat identity + QR, contacts, the thread (text + payment cards), the composer
  └─ useVault() / useWallet() / useMessaging()   three contexts, all derived from the unlocked document
 
 src/messaging/         the chat, and only the chat; storage is somebody else's job
  ├─ identity.ts   conversation ids (hash of both keys, sorted), content topics, contact parsing
  ├─ envelope.ts   per-message ephemeral ECDH → HKDF-SHA256 → XChaCha20-Poly1305, signed header
+ ├─ payments.ts   the payment-request / payment-receipt body codec: ids, amounts, chain, refusal to guess
  ├─ service.ts    what we watch, what leaves (sealed + signed), what arrives (opened + verified)
  ├─ transport.ts  the seam: `start` / `stop` / `publish` / `subscribe`, nothing Waku-specific
  ├─ waku.ts       a Waku light node (LightPush + Filter) behind that seam, SDK imported lazily
@@ -111,7 +115,7 @@ src/vault/
 
 Data at rest is exactly one IndexedDB record: `{ id, version, kdf: { algorithm, opsLimit, memLimitBytes, saltHex }, envelope, createdAt, updatedAt }`. `envelope` is `oc1.<nonce>.<aad|->.<ciphertext>` in unpadded URL-safe base64. `src/vault/no-plaintext.test.ts` scans the real database and fails if the password, the mnemonic, a derived key or an address ever appears outside the sealed envelope — and, since milestone 5, if a contact label, an identity string, a conversation id, a content topic or a message body does either.
 
-On the wire, each message is `om1.<base64url JSON>` in which that JSON is the header `{ version, conversationId, senderPublicKey, ephemeralPublicKey, sentAt, sealed, signature }`: the body is sealed to a **freshly generated** key pair derived for that one message and the header is signed with the sender's identity key. A recipient can therefore prove _who_ sent a frame and _that it is unaltered_, and neither a relay nor a later reader of the network's traffic can read a byte of it or tie the topic back to a wallet address.
+On the wire, each message is `om1.<base64url JSON>` in which that JSON is the header `{ version, conversationId, senderPublicKey, ephemeralPublicKey, kind, sentAt, sealed, signature }`: the body is sealed to a **freshly generated** key pair derived for that one message and the header is signed with the sender's identity key. A recipient can therefore prove _who_ sent a frame and _that it is unaltered_, and neither a relay nor a later reader of the network's traffic can read a byte of it or tie the topic back to a wallet address. `kind` is part of the signed header, so a text frame cannot be re-labelled as a payment (or a request as a receipt) on the way — the signature and the associated data both cover it. A `payment-request` body is JSON `{ requestId, payTo, amountWei, note, payToChainId }` and a `payment-receipt` body is `{ requestId, status, txHash, settledAt }`; `kind: "text"` stays free text, and a payment-shaped JSON body sent as text is just text.
 
 ## Running it
 
@@ -132,12 +136,16 @@ The Messages panel starts in **local only** mode, where a chat never leaves the 
 - End-to-end: `npm run test:e2e` (Playwright, Chromium, against the production build served by `vite preview`). `e2e/wallet.spec.ts` creates a vault in a real browser and then balances, sends, checks a receipt and scans history against a **stubbed** Sepolia JSON-RPC endpoint that answers `eth_fillTransaction`, `eth_sendRawTransaction`, `eth_getReceipt` and `eth_getBlockByNumber` with fixtures. viem, the chain guard, the fee arithmetic and the UI are the real code; only the chain is canned, so CI needs no outbound network and no funded key.
 - The live Waku path is a test too, just not an automatic one: `WAKU_LIVE=1 npx vitest run --environment node src/messaging/waku.live.test.ts` starts two real light nodes on the public network and trades a sealed direct message between them. It is skipped unless that flag is set, so CI stays hermetic and never downloads the SDK; the timings it produced are in the table above.
 - Chat is also covered without the network: `src/messaging/waku.test.ts` drives the adapter with a fake SDK, and `src/ui/messaging-context.test.tsx` runs two identities against an in-memory network to exercise the contact, thread, rejection and vault-storage paths through the real UI.
+- Pay-in-chat is tested at the same three levels: `src/messaging/payments.test.ts` (23 tests) pins the codec — a request must name its chain, a paid receipt must carry a 32-byte hash, a declined one must not; `src/messaging/service.test.ts` proves the amount and the payee address never appear on the wire in the clear and that a mainnet request publishes nothing; `src/ui/messaging-context.test.tsx` drives the whole loop through the UI — ask, pay with one click against the in-memory chain, hash back in the thread, decline without a chain call, and a shortfall that disables the button.
 - CI runs lint, format check, typecheck, unit tests, build, Playwright and gitleaks on every push and pull request, and reports `npm audit` without failing the build.
 
 ## What this does not do
 
 - **Not audited, and testnet only.** Mainnet is refused in code (chain ID 1 throws `MainnetRefusedError`) and covered by tests in `src/wallet/chain.test.ts` and `src/ui/wallet-context.test.tsx`, which also prove nothing is fetched after the refusal. Do not use it with real funds.
-- **Chat has no history from the network.** Only LightPush and Filter are wired up — there is no Store query — so a message sent while your app was closed is simply gone: there is nothing to fetch it from. History is what your own vault holds, and a vault is one device. Pay-in-chat is still unbuilt (milestone 6).
+- **Chat has no history from the network.** Only LightPush and Filter are wired up — there is no Store query — so a message sent while your app was closed is simply gone: there is nothing to fetch it from. History is what your own vault holds, and a vault is one device.
+- **A payment request never expires and cannot be refunded.** It stays payable until the recipient pays or declines; there is no expiry, no cancellation after it has been sent and no refund path — a wrong payment on Sepolia is a wrong payment, and only the payer's own transaction can move it. One request is in flight at a time, and there is no fiat amount, no tip and no cart.
+- **The thread posts the hash; it does not watch the chain for it.** The payer's wallet signs and broadcasts, the wallet's own receipt read is what confirms the transaction, and the hash lands in both vaults so either side can open it in an explorer. The chat itself makes no claim beyond "the payer said this hash"; a lying payer could post a hash for a transaction that never happened, and the other side would only find out at the explorer link. Amounts, addresses and the ledger live only in the encrypted vaults, so no third party is told what was asked for.
+- **The ledger records a request, not a payer.** A request names the payee; the receipt names a transaction. Neither carries the payer's address, so the ledger keeps `from: null` rather than inferring it — quote the transaction hash if you need to prove who paid.
 - **A Waku relay sees that you are talking, and how much.** It cannot see the text, who you are, or your wallet address, but it can see a light node asking for traffic on a topic, the topic's size and timing, and your IP. Two contacts who paste each other's identity strings share one topic, so a relay that watches long enough can group those messages as one conversation even without names. There is no Tor or mixnet mode.
 - **No forward secrecy.** Each message uses a fresh ephemeral key pair and the sender discards it, but the recipient's long-term key plus the ephemeral public key in the envelope is enough to re-derive a message key — whoever holds your messaging private key can open any frame they kept. There is also no ratchet, no post-compromise healing and no deniability: every message carries a signature that proves who sent it.
 - **The content topic deviates from the PRD, deliberately.** The PRD specifies `/oblivion/1/dm/<conv-id>/proto`; Waku's autosharding validator (RFC 51) reads a topic as application/version/name/encoding with an optional generation prefix and rejects the extra segment, so the shipped topic is `/oblivion/1/<conv-id>/proto`. Same one-topic-per-pair property, one fewer field. The reasoning lives in `src/messaging/identity.ts` and `docs/PLAN.md`.
@@ -172,6 +180,11 @@ The Messages panel starts in **local only** mode, where a chat never leaves the 
 - **The Waku SDK never loads unless you ask for it.** It is a lazy `import()` behind the Waku transport only, so tests, CI and anyone who stays in local mode never download its 849 kB. Trade-off: the first switch to Waku costs a chunk download before the first peer is found.
 - **All randomness from one place.** WebCrypto's `crypto.getRandomValues` produces salts, AEAD nonces and ephemeral keys; libsodium is used only for the KDF and the AEAD, so there is one entropy story to review.
 - **Reload always starts locked.** The vault key is never persisted, not even session-scoped. Trade-off: unlock costs an Argon2id derivation (~0.41 s) every time the tab is refreshed.
+- **Pay-in-chat reuses the envelope instead of adding a protocol.** A payment request is a sealed chat message of kind `payment-request`, and the receipt is its mirror; the vault's `payments` ledger is the app's view of the same bytes. Trade-off: payment semantics are as available as the chat is — if the transport is down, so is the payment request.
+- **The message kind is inside the signed header.** It is part of the canonical header bytes, so `kind` is authenticated in the same signature and the same associated data as the rest of the frame; a receiver cannot be tricked into showing a payment card for a text frame. Trade-off: the header grows by one field, and every consumer of the header bytes (all tested) has to agree on the order.
+- **The chain a request names is checked, not assumed.** A body must carry `payToChainId`, and the service runs it through the same guard the wallet uses, so a mainnet request throws `MainnetRefusedError` and publishes nothing. Trade-off: a request from a chain-agnostic future client would be refused outright.
+- **One request is one id, and a receipt touches one row.** `pay-…` ids are random and quoted verbatim; a receipt for an id this vault never asked for updates nothing (the frame is still shown in the thread), so a stranger cannot inject a fabricated ledger entry. Trade-off: a receipt that arrives before its request is stored as a message only, and the ledger row stays "requested".
+- **The pay button is armed by the fee, not by hope.** The card fetches the estimate first, shows gas, cap, worst case and the total required, and only then enables Pay — with the balance checked against amount plus fee. Trade-off: one extra RPC read per request, and Pay stays disabled if the endpoint is unreachable.
 
 ## Credits & licenses
 

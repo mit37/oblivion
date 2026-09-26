@@ -14,6 +14,11 @@
  *
  * The header is authenticated twice — once by the signature, once as AAD — so a
  * message cannot be replayed into another conversation or re-labelled.
+ *
+ * The message `kind` is part of that header, not of the sealed body: a payment
+ * request cannot be turned into a chat message, or a chat message into a payment
+ * button, without invalidating the signature and the AEAD tag. The body is then
+ * read according to the kind (`text` is literal, the payment kinds are JSON).
  */
 import { hkdf } from '@noble/hashes/hkdf.js'
 import { sha256 } from '@noble/hashes/sha2.js'
@@ -31,14 +36,25 @@ export const MESSAGE_ENVELOPE_VERSION = 'om1'
 /** Domain separation for the HKDF step. */
 const KEY_INFO = utf8ToBytes('oblivion/1/dm')
 
+/**
+ * What a message is. Kept structurally identical to the vault's `MessageKind`,
+ * which `messaging/kinds.test.ts` pins so the two cannot drift apart.
+ */
+export const MESSAGE_KINDS = ['text', 'payment-request', 'payment-receipt'] as const
+
+export type MessageKind = (typeof MESSAGE_KINDS)[number]
+
+export const DEFAULT_MESSAGE_KIND: MessageKind = 'text'
+
 export interface MessagePayload {
   readonly version: string
   readonly conversationId: string
   readonly senderPublicKey: HexString
   /** Ephemeral public key of this one message. */
   readonly ephemeralPublicKey: HexString
+  readonly kind: MessageKind
   readonly sentAt: string
-  /** `oc1.…` sealed text. */
+  /** `oc1.…` sealed body: literal text, or JSON for the payment kinds. */
   readonly sealed: string
   readonly signature: HexString
 }
@@ -49,6 +65,8 @@ export interface SealMessageOptions {
   readonly senderPublicKey: HexString
   readonly recipientPublicKey: HexString
   readonly conversationId: string
+  /** Defaults to `text`; the payment kinds carry JSON bodies. */
+  readonly kind?: MessageKind
   readonly sentAt: string
   /** Tests only: pin the ephemeral key so the output is reproducible. */
   readonly ephemeralPrivateKey?: HexString
@@ -64,6 +82,7 @@ export interface OpenMessageOptions {
 
 export interface OpenedMessage {
   readonly plaintext: string
+  readonly kind: MessageKind
   readonly senderPublicKey: HexString
   readonly sentAt: string
   readonly conversationId: string
@@ -73,6 +92,7 @@ export async function sealMessage(options: SealMessageOptions): Promise<MessageP
   const conversationId = assertConversationId(options.conversationId)
   const senderPublicKey = assertPublicKey(options.senderPublicKey, 'sender public key')
   const recipientPublicKey = assertPublicKey(options.recipientPublicKey, 'recipient public key')
+  const kind = assertKind(options.kind ?? DEFAULT_MESSAGE_KIND)
   const sentAt = assertTimestamp(options.sentAt)
 
   const ephemeralPrivateKey = options.ephemeralPrivateKey
@@ -87,6 +107,7 @@ export async function sealMessage(options: SealMessageOptions): Promise<MessageP
     conversationId,
     senderPublicKey,
     ephemeralPublicKey,
+    kind,
     sentAt,
   })
 
@@ -101,6 +122,7 @@ export async function sealMessage(options: SealMessageOptions): Promise<MessageP
     conversationId,
     senderPublicKey,
     ephemeralPublicKey,
+    kind,
     sentAt,
     sealed,
     signature,
@@ -146,6 +168,7 @@ export async function openMessage(options: OpenMessageOptions): Promise<OpenedMe
 
   return {
     plaintext,
+    kind: payload.kind,
     senderPublicKey: payload.senderPublicKey,
     sentAt: payload.sentAt,
     conversationId,
@@ -206,6 +229,7 @@ export function parseMessagePayload(value: unknown): MessagePayload {
   return {
     version: MESSAGE_ENVELOPE_VERSION,
     conversationId,
+    kind: assertKind(record.kind),
     senderPublicKey: assertPublicKey(record.senderPublicKey, 'senderPublicKey'),
     ephemeralPublicKey: assertPublicKey(record.ephemeralPublicKey, 'ephemeralPublicKey'),
     sentAt: assertTimestamp(assertString(record.sentAt, 'sentAt')),
@@ -219,6 +243,7 @@ export function headerBytes(header: {
   readonly conversationId: string
   readonly senderPublicKey: string
   readonly ephemeralPublicKey: string
+  readonly kind: string
   readonly sentAt: string
 }): Uint8Array {
   return utf8ToBytes(
@@ -227,9 +252,19 @@ export function headerBytes(header: {
       header.conversationId,
       header.senderPublicKey.toLowerCase(),
       header.ephemeralPublicKey.toLowerCase(),
+      header.kind,
       header.sentAt,
     ].join('\n'),
   )
+}
+
+/** A kind this build does not know is refused, not guessed at. */
+export function assertKind(value: unknown): MessageKind {
+  if (typeof value !== 'string' || !MESSAGE_KINDS.includes(value as MessageKind)) {
+    throw new InvalidEnvelopeError(`unsupported message kind "${String(value)}"`)
+  }
+
+  return value as MessageKind
 }
 
 export function deriveMessageKey(sharedPoint: Uint8Array, conversationId: string): Uint8Array {

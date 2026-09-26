@@ -79,21 +79,24 @@ function UnlockThenRender({
 }
 
 /**
- * The same unlocked-vault start, but inside the messaging provider: tests pass a
+ * The same unlocked-vault start, but inside the wallet and messaging providers —
+ * the same nesting `App` uses, because pay-in-chat needs both. Tests pass a
  * transport (usually one from a shared `InMemoryNetwork`), never the network.
  */
 export function UnlockedMessagingHarness({
   children,
   transportFactory,
   storage = new MemoryVaultStorage(),
+  factory = offlineWalletFactory(),
 }: {
   readonly children: ReactNode
   readonly transportFactory: (mode: 'local' | 'waku') => MessageTransport
   readonly storage?: MemoryVaultStorage
+  readonly factory?: WalletFactory
 }) {
   return (
     <VaultProvider vaultFactory={() => testVault(storage)} autoLockTarget={new EventTarget()}>
-      <UnlockThenRenderMessaging transportFactory={transportFactory}>
+      <UnlockThenRenderMessaging transportFactory={transportFactory} factory={factory}>
         {children}
       </UnlockThenRenderMessaging>
     </VaultProvider>
@@ -103,15 +106,21 @@ export function UnlockedMessagingHarness({
 function UnlockThenRenderMessaging({
   children,
   transportFactory,
+  factory,
 }: {
   readonly children: ReactNode
   readonly transportFactory: (mode: 'local' | 'waku') => MessageTransport
+  readonly factory: WalletFactory
 }) {
   const unlocked = useUnlockedVault()
 
   if (!unlocked) return null
 
-  return <MessagingProvider transportFactory={transportFactory}>{children}</MessagingProvider>
+  return (
+    <WalletProvider factory={factory}>
+      <MessagingProvider transportFactory={transportFactory}>{children}</MessagingProvider>
+    </WalletProvider>
+  )
 }
 
 /** Creates the vault on first mount and reports when it is unlocked. */
