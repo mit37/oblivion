@@ -43,6 +43,7 @@ const MODULES = [
     prefix: 'src/messaging/',
     command: 'npx vitest run src/messaging',
   },
+  { label: '- security policy', prefix: 'src/security/', command: 'npx vitest run src/security' },
 ]
 
 // Bundle chunks, identified by the names Vite gives them. A renamed chunk fails

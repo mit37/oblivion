@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-09-26T21:45:08.020Z",
+  "generatedAt": "2026-09-26T21:58:07.986Z",
   "node": "24.20.0",
   "platform": "win32",
   "unit": {
-    "passed": 589,
+    "passed": 597,
     "skipped": 2,
-    "files": 30,
+    "files": 31,
     "skippedFiles": 0,
-    "wallSeconds": 42.8,
+    "wallSeconds": 37.5,
     "modules": [
       {
         "label": "- crypto module",
@@ -36,6 +36,13 @@
         "command": "npx vitest run src/messaging",
         "tests": 98,
         "pending": 2
+      },
+      {
+        "label": "- security policy",
+        "prefix": "src/security/",
+        "command": "npx vitest run src/security",
+        "tests": 8,
+        "pending": 0
       }
     ],
     "uiTests": 88,
@@ -77,10 +84,10 @@
     "chunkCount": 7
   },
   "e2e": {
-    "expected": 2,
+    "expected": 3,
     "unexpected": 0,
     "skipped": 0,
-    "seconds": 6.4
+    "seconds": 5.3
   },
   "live": {
     "status": "not-measured",
@@ -88,7 +95,7 @@
     "frameSeconds": null,
     "directMessageSeconds": null
   },
-  "argon2Seconds": 0.36,
+  "argon2Seconds": 0.23,
   "audit": {
     "status": "measured",
     "total": 6,

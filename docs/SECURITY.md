@@ -70,7 +70,7 @@ The recipient's side arms its Pay button only after the fee has been fetched and
 ## 4. What is explicitly not defended
 
 - **A compromised device or a malicious browser extension.** Malware, a keylogger, a screen recorder or an injected same-origin script can read what you can read, including the unlocked vault document and the password as you type it. There is no secure enclave, no OS keystore and no hardware wallet support.
-- **Cross-site scripting and header hardening.** The app renders through React, never uses `dangerouslySetInnerHTML`, `eval` or `new Function`, and stores nothing in `localStorage` or cookies. But it ships **no Content-Security-Policy** — the GitHub Pages host cannot set response headers, and no `<meta http-equiv>` policy is in `index.html` yet — so a successful script injection into the app origin would run with the app's full privileges. This is a known gap, not an oversight to be discovered later.
+- **Cross-site scripting.** The app renders through React, never uses `dangerouslySetInnerHTML`, `eval` or `new Function`, and stores nothing in `localStorage` or cookies. The production build adds a Content-Security-Policy through a `<meta http-equiv>` tag (`src/security/csp.ts`, injected by `vite.config.ts` at build time only, asserted by `e2e/smoke.spec.ts`): `default-src 'self'`, `script-src 'self' 'wasm-unsafe-eval'` (no `'unsafe-inline'`, so an injected inline script does not run), `connect-src 'self' https: wss:` (the wallet's endpoint and the Waku light node's peers are chosen at runtime, so this directive is broad by necessity and named as such), `style-src 'self' 'unsafe-inline'` (React sets `style` attributes), `object-src`, `base-uri` and `form-action` all `'none'`. What the policy cannot do is as important: GitHub Pages sets no response headers, so there is **no `frame-ancestors`** (clickjacking is not prevented — `frame-ancestors` is ignored in a `<meta>` policy) and no HSTS, and the policy is a mitigation, not a substitute for an audit.
 - **Memory hygiene at the level of a native app.** As §1 says: the vault key is zeroed, the decrypted document is a JavaScript value that cannot be.
 - **Traffic analysis beyond what §5 lists.** Message length is not padded and is only a few bytes larger than the plaintext, so a relay can estimate how much was said, and when. Payment messages are recognisably JSON-shaped by length. Timing correlations across a conversation are not defended.
 - **Waku protocol-level attacks.** A light node gets its peers from the SDK's default bootstrap list (or `VITE_WAKU_BOOTSTRAP_PEERS`); those peers see the connecting IP and the topics subscribed to, and a peer that goes away or lies can cause outage or message loss. No mixnet, no Tor, no cover traffic, no peer pinning.
@@ -136,7 +136,7 @@ Other supply-chain properties: no secrets in the repository and `.env.example` d
 ## 9. Known gaps, in one list
 
 1. No audit, no security review, no formal verification, no bug bounty — this document is the builders' account.
-2. No Content-Security-Policy header or meta tag (and GitHub Pages cannot set headers).
+2. No response-header hardening: no `frame-ancestors` (clicks can be framed), no HSTS, no `X-Content-Type-Options` — GitHub Pages cannot set headers, and the shipped `<meta>` policy covers what a meta policy can.
 3. The decrypted vault document, including the mnemonic, is a JavaScript value that cannot be wiped from memory.
 4. No forward secrecy, no ratchet, no deniability; a later compromise of a chat key opens kept frames and proves authorship.
 5. No replay or freshness bound on `sentAt`; dedupe is local to one vault.
@@ -158,14 +158,15 @@ Other supply-chain properties: no secrets in the repository and `.env.example` d
 
 Every claim above that can be tested is, in the same repository, on every push:
 
-| Area        | Tests                             | What they pin                                                                                                                                                                          |
-| ----------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Crypto core | 175 (`src/crypto`)                | Argon2id profiles and the weak-profile refusal, AEAD tamper detection on ciphertext/tag/nonce/AAD/envelope bytes, BIP-39/BIP-32/BIP-44 vectors, signature verification                 |
-| Vault       | 140 (`src/vault`)                 | Create/unlock/lock/re-wrap, parameter-downgrade refusal, schema migration, auto-lock, and the plaintext-at-rest scan                                                                   |
-| Wallet      | 88 (`src/wallet`)                 | Mainnet refusal with no request made, EIP-681 parsing, fee arithmetic, balance check, history bounds                                                                                   |
-| Messaging   | 98 + 2 live (`src/messaging`)     | Envelope seal/open/tamper/signature, identity and topic shape, contact parsing, payment codec, mainnet-payment refusal with nothing published, and the Waku adapter against a fake SDK |
-| UI          | 88 (`src/App.test.tsx`, `src/ui`) | The safety banner, the lock behaviour, wallet state tagging, the chat loops and the pay-in-chat loop (in-memory network + fake chain)                                                  |
-| End-to-end  | 2 (`e2e/`)                        | The built app loads with the safety banner; a real browser creates a vault and drives the wallet against a stubbed Sepolia endpoint                                                    |
+| Area            | Tests                             | What they pin                                                                                                                                                                          |
+| --------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Crypto core     | 175 (`src/crypto`)                | Argon2id profiles and the weak-profile refusal, AEAD tamper detection on ciphertext/tag/nonce/AAD/envelope bytes, BIP-39/BIP-32/BIP-44 vectors, signature verification                 |
+| Vault           | 140 (`src/vault`)                 | Create/unlock/lock/re-wrap, parameter-downgrade refusal, schema migration, auto-lock, and the plaintext-at-rest scan                                                                   |
+| Wallet          | 88 (`src/wallet`)                 | Mainnet refusal with no request made, EIP-681 parsing, fee arithmetic, balance check, history bounds                                                                                   |
+| Messaging       | 98 + 2 live (`src/messaging`)     | Envelope seal/open/tamper/signature, identity and topic shape, contact parsing, payment codec, mainnet-payment refusal with nothing published, and the Waku adapter against a fake SDK |
+| UI              | 88 (`src/App.test.tsx`, `src/ui`) | The safety banner, the lock behaviour, wallet state tagging, the chat loops and the pay-in-chat loop (in-memory network + fake chain)                                                  |
+| Security policy | 8 (`src/security/`)               | Each directive of the shipped Content-Security-Policy, including the ones deliberately absent (`'unsafe-inline'` for scripts, `frame-ancestors`)                                       |
+| End-to-end      | 3 (`e2e/`)                        | The built app loads with the safety banner and the policy in its HTML; a real browser creates a vault and drives the wallet against a stubbed Sepolia endpoint                         |
 
 Commands, timings and the full local verification log (including the two-browser live Waku check) are in [`PLAN.md`](PLAN.md). The live Waku tests are opt-in (`WAKU_LIVE=1`) so CI stays hermetic, and the `npm audit` finding is _reported_, never hidden.
 
@@ -175,4 +176,5 @@ This is a prototype with no security team, no contact address and no bounty. If 
 
 ## 12. Revision history
 
-- **2026-09-26** — first version (milestone 7), covering milestones 1–6. Planned next revision: milestone 8, when the README numbers are regenerated by `npm run report` and the demo recording lands.
+- **2026-09-26** — first version (milestone 7), covering milestones 1–6.
+- **2026-09-26, later the same day (milestone 8)** — the build now ships the Content-Security-Policy described in §4, so the gap that read "no CSP" is narrowed to the header-level items GitHub Pages cannot set (`frame-ancestors`, HSTS). The README's numbers are now generated by `npm run report` and recorded in `docs/report.json`; the demo recording is still outstanding.

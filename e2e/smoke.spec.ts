@@ -10,3 +10,15 @@ test('built app loads and shows the safety banner', async ({ page }) => {
   await expect(banner).toContainText('testnet only')
   await expect(banner).toContainText('Do not use with real funds or sensitive conversations.')
 })
+
+test('the built app ships the Content-Security-Policy', async ({ page }) => {
+  await page.goto('/')
+
+  const policy = await page
+    .locator('meta[http-equiv="Content-Security-Policy"]')
+    .getAttribute('content')
+
+  expect(policy).toContain("default-src 'self'")
+  expect(policy).toContain("'wasm-unsafe-eval'")
+  expect(policy).not.toContain("'unsafe-eval'")
+})

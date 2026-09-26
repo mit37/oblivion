@@ -47,13 +47,14 @@ Every number below was produced by this repo on 2026-09-26 with `npm run report`
 
 | Measurement                                              | Value                                                                    | Command                                            |
 | -------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------- |
-| Unit tests (Vitest)                                      | 589 passing, 30 files (2 more skipped), 42.8 s wall time                 | `npm test`                                         |
+| Unit tests (Vitest)                                      | 597 passing, 31 files (2 more skipped), 37.5 s wall time                 | `npm test`                                         |
 | - crypto module                                          | 175 tests                                                                | `npx vitest run src/crypto`                        |
 | - vault module                                           | 140 tests                                                                | `npx vitest run src/vault`                         |
 | - wallet engine                                          | 88 tests                                                                 | `npx vitest run src/wallet`                        |
 | - messaging module                                       | 98 tests (2 skipped unless opted in)                                     | `npx vitest run src/messaging`                     |
+| - security policy                                        | 8 tests                                                                  | `npx vitest run src/security`                      |
 | - app + UI (wallet, QR, chat and pay-in-chat panels)     | 88 tests                                                                 | `npx vitest run src/App.test.tsx src/ui`           |
-| End-to-end (Playwright, Chromium, built app)             | 2 passing (6.4 s)                                                        | `npm run test:e2e`                                 |
+| End-to-end (Playwright, Chromium, built app)             | 3 passing (5.3 s)                                                        | `npm run test:e2e`                                 |
 | Live Waku: a light node carries one transport frame      | not measured here — opt-in: needs outbound network access                | `WAKU_LIVE=1 npm run report`                       |
 | Live Waku: two light nodes trade a sealed direct message | not measured here — opt-in: needs outbound network access                | `(same command)`                                   |
 | Production bundle, app chunk                             | 702.05 kB (222.21 kB gzip)                                               | `npm run build`                                    |
@@ -61,7 +62,7 @@ Every number below was produced by this repo on 2026-09-26 with `npm run report`
 | Production bundle, lazily loaded libsodium chunk         | 533.91 kB (189.07 kB gzip)                                               | `npm run build`                                    |
 | Production bundle, lazily loaded Waku SDK chunk          | 849.47 kB (258.19 kB gzip)                                               | `npm run build`                                    |
 | Production bundle, Waku adapter chunk                    | 2.58 kB (1.06 kB gzip)                                                   | `npm run build`                                    |
-| Argon2id at the default `interactive` profile            | 0.36 s per derivation                                                    | `npm run report`                                   |
+| Argon2id at the default `interactive` profile            | 0.23 s per derivation                                                    | `npm run report`                                   |
 | Dependency advisories (`npm audit`)                      | 6 (2 moderate, 4 high) — reported in CI, non-blocking                    | `npm audit`                                        |
 | Pay-in-chat loop in the UI (ask → one click → hash back) | 1.2 s per run (in-memory network + fake chain)                           | `npx vitest run src/ui/messaging-context.test.tsx` |
 | Fee shown for a 0.001 ETH send at a 20 gwei gas price    | 0.00084 ETH (worst case, 21 000 gas × a 40 gwei cap)                     | `npx playwright test e2e/wallet.spec.ts`           |
@@ -145,6 +146,7 @@ The decisions that did not need a headline, kept here because each one had a rea
 - **The chain a request names is checked, not assumed.** A body must carry `payToChainId`, and the service runs it through the wallet's own guard: mainnet throws and nothing is published, and a body naming no chain is refused rather than assumed. Trade-off: a chain-agnostic future client would be refused outright.
 - **The pay button is armed by the fee, not by hope.** The card fetches the estimate first and shows gas, cap, worst case and the total required before Pay is enabled, with the balance checked against amount plus fee. Trade-off: one extra RPC read per request, and Pay stays disabled if the endpoint is unreachable.
 - **All randomness from one place.** WebCrypto's `crypto.getRandomValues` produces salts, AEAD nonces and ephemeral keys; libsodium is used only for the KDF and the AEAD, so there is one entropy story to review. Trade-off: one more abstraction between the call sites and the primitive.
+- **The Content-Security-Policy is injected into the build only.** `src/security/csp.ts` holds the policy, `vite.config.ts` adds it to `index.html` with a build-time-only plugin, and `src/security/csp.test.ts` pins every directive — including the ones deliberately absent. The dev server gets none, because its inline client and React Fast Refresh would force `'unsafe-inline'` into a policy that then ships weaker. Trade-off: a divergence between dev and the built app, which is why the browser test asserts the policy is in the HTML the build produced.
 - **Reload always starts locked.** The vault key is never persisted, not even session-scoped. Trade-off: unlock costs an Argon2id derivation (~0.4 s) every time the tab is refreshed.
 
 ## Running it
@@ -190,7 +192,7 @@ The Messages panel starts in **local only** mode, where a chat never leaves the 
 - **Desktop browser only.** No mobile build, no hardware wallet, no WalletConnect.
 - **No recovery.** Lose the password and the phrase and the data is gone; there is no server, no reset link and no support desk.
 - **No protection against a compromised device.** Malware, a keylogger, a malicious extension or someone with your unlocked session can read what you can read: the decrypted document is a JavaScript value that cannot be wiped like the vault key is. The full list — including what a relay can measure, why there is no forward secrecy, and what a payment request does _not_ prove — is in [`docs/SECURITY.md`](docs/SECURITY.md).
-- **No Content-Security-Policy.** The app never uses `dangerouslySetInnerHTML`, `eval`, `localStorage` or cookies, but GitHub Pages cannot set response headers and no `<meta http-equiv>` policy is shipped yet, so a same-origin script injection would run with the app's privileges. Recorded as a known gap in the threat model rather than left implicit.
+- **A Content-Security-Policy, but no response headers.** The built app ships a meta policy (`default-src 'self'`; no inline scripts; WebAssembly allowed for libsodium; `connect-src` limited to `https:`/`wss:` because the wallet's endpoint and the Waku peers are chosen at runtime), and the app never uses `dangerouslySetInnerHTML`, `eval`, `localStorage` or cookies. What it cannot do: GitHub Pages sets no response headers, so there is no `frame-ancestors` — clickjacking is not prevented — and no HSTS. Both are named in the threat model.
 - **Two third parties still learn something, and neither is hidden.** A Waku relay sees your chat traffic (above), and the RPC provider sees your wallet address (above). Everything that was designed to withstand an observer — the envelope, the ciphertext, the vault record — is worthless to them; the metadata is simply not defended.
 - **No telemetry, no analytics, no logging of key material.** `no-console` is an ESLint error in `src/`.
 - **Never planned:** mainnet, group chats, swaps/DEX, NFTs, custodial anything, or a mobile-native app (PRD non-goals).
