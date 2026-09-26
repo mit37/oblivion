@@ -8,9 +8,11 @@
  */
 import { useEffect, type ReactNode } from 'react'
 
+import type { MessageTransport } from '../messaging/transport'
 import { FakeChain, createFakeSender } from '../wallet/fake-chain'
 import { WalletService } from '../wallet/service'
 import type { ChainReader, ChainSender } from '../wallet/types'
+import { MessagingProvider } from '../ui/messaging-context'
 import { VaultProvider, useVault } from '../ui/vault-context'
 import { WalletProvider, type WalletFactory } from '../ui/wallet-context'
 import { MemoryVaultStorage } from '../vault/storage'
@@ -69,6 +71,51 @@ function UnlockThenRender({
   readonly children: ReactNode
   readonly factory: WalletFactory
 }) {
+  const unlocked = useUnlockedVault()
+
+  if (!unlocked) return null
+
+  return <WalletProvider factory={factory}>{children}</WalletProvider>
+}
+
+/**
+ * The same unlocked-vault start, but inside the messaging provider: tests pass a
+ * transport (usually one from a shared `InMemoryNetwork`), never the network.
+ */
+export function UnlockedMessagingHarness({
+  children,
+  transportFactory,
+  storage = new MemoryVaultStorage(),
+}: {
+  readonly children: ReactNode
+  readonly transportFactory: (mode: 'local' | 'waku') => MessageTransport
+  readonly storage?: MemoryVaultStorage
+}) {
+  return (
+    <VaultProvider vaultFactory={() => testVault(storage)} autoLockTarget={new EventTarget()}>
+      <UnlockThenRenderMessaging transportFactory={transportFactory}>
+        {children}
+      </UnlockThenRenderMessaging>
+    </VaultProvider>
+  )
+}
+
+function UnlockThenRenderMessaging({
+  children,
+  transportFactory,
+}: {
+  readonly children: ReactNode
+  readonly transportFactory: (mode: 'local' | 'waku') => MessageTransport
+}) {
+  const unlocked = useUnlockedVault()
+
+  if (!unlocked) return null
+
+  return <MessagingProvider transportFactory={transportFactory}>{children}</MessagingProvider>
+}
+
+/** Creates the vault on first mount and reports when it is unlocked. */
+function useUnlockedVault(): boolean {
   const { status, create, unlock } = useVault()
 
   useEffect(() => {
@@ -76,7 +123,5 @@ function UnlockThenRender({
     else if (status === 'locked') void unlock(TEST_PASSWORD)
   }, [status, create, unlock])
 
-  if (status !== 'unlocked') return null
-
-  return <WalletProvider factory={factory}>{children}</WalletProvider>
+  return status === 'unlocked'
 }

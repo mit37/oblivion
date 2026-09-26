@@ -111,15 +111,17 @@ interface SentRecord extends SentTransaction {
 export function WalletProvider({ children, factory }: WalletProviderProps) {
   const { status, document, identity, update } = useVault()
 
-  const walletIdentity = useMemo<WalletIdentity | null>(() => {
-    if (status !== 'unlocked' || !document || !identity) return null
+  // Derived from stable primitives rather than the whole document: a vault write
+  // (a stored message, a new setting) must not rebuild the wallet clients.
+  const mnemonic = status === 'unlocked' ? (document?.identity.mnemonic ?? null) : null
+  const addressIndex = status === 'unlocked' ? (document?.settings.addressIndex ?? 0) : 0
+  const address = status === 'unlocked' ? (identity?.address ?? null) : null
 
-    return {
-      address: identity.address,
-      mnemonic: document.identity.mnemonic,
-      addressIndex: document.settings.addressIndex,
-    }
-  }, [document, identity, status])
+  const walletIdentity = useMemo<WalletIdentity | null>(() => {
+    if (!mnemonic || !address) return null
+
+    return { address, mnemonic, addressIndex }
+  }, [address, addressIndex, mnemonic])
 
   /**
    * Derived, not stored: when the vault locks, `walletIdentity` becomes null and

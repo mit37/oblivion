@@ -263,9 +263,10 @@ export function Dashboard() {
       <section className="card" aria-labelledby="build-title">
         <h2 id="build-title">Build status</h2>
         <p className="muted small">
-          The vault, the crypto core, CI and the Sepolia wallet exist. Messaging and pay-in-chat are
-          still to come, so nothing here holds conversations yet — and the wallet only ever touches
-          testnet.
+          The vault, the crypto core, CI, the Sepolia wallet and encrypted messaging exist, so two
+          browsers can already hold a sealed conversation over the real Waku network. Pay-in-chat,
+          the security write-up and the release polish are still to come — and the wallet only ever
+          touches testnet.
         </p>
 
         <ol className="milestones">

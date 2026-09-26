@@ -30,6 +30,7 @@
     "@noble/hashes": "^2.4.0",
     "@scure/bip32": "^2.4.0",
     "@scure/bip39": "^2.4.0",
+    "@waku/sdk": "^0.0.36",
     "idb": "^8.0.3",
     "libsodium-wrappers-sumo": "^0.8.4",
     "qrcode": "^1.5.4",

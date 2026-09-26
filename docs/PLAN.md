@@ -17,10 +17,10 @@ Ground rules carried from the PRD, in force for every milestone:
 
 - [x] Crypto tests incl. BIP-39/44 vectors and tamper detection (≥60 tests) — 175 crypto tests
 - [x] Mainnet refusal enforced by a test — `wallet/chain.test.ts` (guard) and `ui/wallet-context.test.tsx` (no chain call happens after the refusal)
-- [ ] No plaintext at rest (test-scanned)
-- [ ] Two-party E2EE chat + pay-in-chat demo recorded on testnet
-- [ ] `docs/SECURITY.md` threat model; "unaudited, testnet only" banner in app + README
-- [ ] CI green; tag v2.0.0
+- [x] No plaintext at rest (test-scanned) — `vault/no-plaintext.test.ts` scans the real IndexedDB record for the password, the mnemonic, derived keys, addresses **and, since milestone 5, a contact label, an identity string, a conversation id, a topic string and a message body** (`oblivion:dm`/`/oblivion/1` included), with a control that reopens the same record and reads the body back
+- [ ] Two-party E2EE chat + pay-in-chat demo recorded on testnet — the two-party chat itself **is done and was verified live** (two browsers, two unrelated identities, sealed DMs each way over the public Waku network, below); what is missing is the screen recording, and pay-in-chat is milestone 6
+- [ ] `docs/SECURITY.md` threat model; "unaudited, testnet only" banner in app + README — the banner is in place (`src/safety.ts`, README header, `e2e/smoke.spec.ts` asserts it); the threat model is milestone 7
+- [ ] CI green; tag v2.0.0 — CI is configured and everything it runs passes locally, but the repo has not been pushed, so no green run can be shown yet
 
 ---
 
@@ -75,13 +75,20 @@ Ground rules carried from the PRD, in force for every milestone:
 - [x] 131 new tests (wallet engine 88, wallet UI 24, QR 19), 467 in the whole suite; plus a browser test that drives the wallet against a stubbed Sepolia JSON-RPC endpoint (`e2e/wallet.spec.ts`)
 - [x] Live check against the real public endpoint on the built app: the balance read, the QR, the fee review and the ERC-20 form all rendered correctly in Chromium
 
-### 5. Waku messaging — not started
+### 5. Waku messaging — **complete**
 
-- [ ] `@waku/sdk` light node (LightPush + Filter, Store for history where available)
-- [ ] Contacts added by exchanging a QR or public-key string
-- [ ] 1:1 chats, content topic `/oblivion/1/dm/<conv-id>/proto`, payloads encrypted end to end
-- [ ] Message history saved in the vault
-- [ ] Two in-process nodes in tests where feasible; otherwise mocked with a documented manual test
+- [x] `@waku/sdk` light node behind a narrow `MessageTransport` seam: LightPush to send, Filter to receive (`src/messaging/waku.ts`). The SDK is imported lazily, so no test and no CI run ever loads it
+- [x] Contacts exchanged as an `oblivion1…` identity string (or the raw compressed public key behind it) and rendered as a QR; a wallet address pasted into that field is refused (`InvalidIdentityError`), as is your own identity (`self-contact`)
+- [x] 1:1 chats, content topic `/oblivion/1/<conv-id>/proto` — **not** the PRD's `/oblivion/1/dm/<conv-id>/proto`, see the deviation note below — with payloads sealed before they reach the transport
+- [x] Per-message ephemeral ECDH: a fresh secp256k1 key per message, HKDF-SHA256 (salt = conversation id, info = `oblivion/1/dm`) into XChaCha20-Poly1305, with the canonical message header as associated data and a compact signature over the header (SHA-256 prehash), so the recipient proves who sent it (`src/messaging/envelope.ts`)
+- [x] Conversation ids derived from **both** public keys, sorted and hashed, so either side computes the same id unaided and no third party can predict it from one key
+- [x] Message history saved in the vault (schema v2), deduplicated on arrival, rendered per conversation with the direction, time and sender
+- [x] A frame that cannot be opened is reported to `onRejected` and surfaced in the panel as an error, never shown as a message; a message for a contact who was removed is counted as an orphan rather than lost
+- [x] Sending to someone you have not added is refused (`NotWatchingError`), the sender's own echo is dropped (returns `null`), and an empty or oversized body (>4 000 chars) is refused
+- [ ] **Not done: Store protocol (history from the network).** Only LightPush + Filter are wired up, so a message sent while the app was closed is simply gone — there is nothing to backfill from. Recorded here, in the README limitations and for the milestone 7 threat model rather than quietly dropped
+- [x] Tests: 64 unit tests across `messaging/envelope` (23, seal/open, tamper, signature and replay cases), `messaging/service` (17, watch/send/receive/reject semantics), `messaging/identity` (13) and `messaging/waku` (11, the adapter driven by a fake SDK); 13 more in `ui/messaging-context` cover the contacts, thread and error paths against an in-memory network
+- [x] The one test that needs the real network (`messaging/waku.live.test.ts`) is opt-in behind `WAKU_LIVE=1` and skipped everywhere else, so CI stays hermetic
+- [x] Two real browsers on the public Waku network exchanged sealed messages in both directions, verified by hand on the built app (below)
 
 ### 6. Pay-in-chat — not started
 
@@ -101,6 +108,14 @@ Ground rules carried from the PRD, in force for every milestone:
 - [ ] GIF (or `docs/DEMO.md` script) of two browsers chatting and paying on Sepolia
 - [ ] `gitleaks detect` run locally before the first push
 - [ ] Tag `v2.0.0`
+
+---
+
+## Deviation from the PRD: the content topic
+
+The PRD writes the 1:1 topic as `/oblivion/1/dm/<conv-id>/proto`. That string cannot be sent on Waku. RFC 51 autosharding validation (`ensureValidContentTopic`, called by the SDK) splits a topic on `/` and allows an application, a version, a name and an encoding — four fields — plus an optional generation prefix, and it reads the _second_ field as the generation. `/oblivion/1/dm/<conv-id>/proto` has five, so the SDK throws before a single byte leaves the node.
+
+The shipped topic is therefore `/oblivion/1/<conv-id>/proto`: same prefix, same version, same `/proto` encoding, same one-topic-per-pair property, with the conversation id as the name field instead of a sentinel segment. `src/messaging/identity.ts` carries the explanation next to the constant, `waku.test.ts` asserts the shape (exactly five parts, a 32-hex id in field four), and the deviation is repeated in the README limitations. Nothing else about the PRD's messaging design changed.
 
 ---
 
@@ -134,6 +149,16 @@ Recorded here as milestones complete, so results are traceable:
   - Build output: `index` 669.2 kB (213.7 kB gzip), with `libsodium-wrappers` still split into its own 533.9 kB chunk.
   - Lint note for future milestones: the React Compiler-era hooks rules (`react-hooks/set-state-in-effect`, `react-hooks/refs`) are **errors** here. A callback that touches a ref cannot be put into a memoized context value, and a function that sets state synchronously cannot be called straight from an effect — the wallet provider derives its service during render and tags loaded state with the service that produced it instead of guarding with a mutable counter.
 
+- **Milestone 5**: 544 tests passing across 28 files (2 more skipped), 77 of them new — `messaging/envelope` 23, `messaging/service` 17, `messaging/identity` 13, `messaging/waku` 11, `ui/messaging-context` 13, plus the plaintext-at-rest scan extended to chat records. Whole suite runs in ~31 s on this machine.
+  - Live Waku, opt-in (`WAKU_LIVE=1 npx vitest run --environment node src/messaging/waku.live.test.ts`): **2 tests pass** — a transport frame round-trip in 6.6 s, and two live light nodes exchanging a sealed DM end to end in 11.3 s, including peer discovery on the public network.
+  - Live two-browser check on the built app (Chromium, real Waku network, real Argon2id): two tabs on different origins (`127.0.0.1` and `localhost`), each with its own vault, its own identity (`oblivion1AwmNNW…K7LPB` / `oblivion1A5zlp-…RTwF2aO`) and its own fingerprint, both connected to Waku. They computed the _same_ conversation id from each other's identity string (`293cbe184e4fc706bae264717df9990c`, topic `/oblivion/1/293cbe18…/proto`), and a message sent from either tab appeared in the other's thread in both directions. The relay saw opaque payloads: neither tab had the other's key, and the message bodies exist only inside the two encrypted vaults.
+  - End-to-end: 2 Playwright tests still passing; the Waku SDK never loads in CI (it is behind a lazy import in the Waku path only).
+  - Build output: `index` 690.0 kB (219.5 kB gzip), `libsodium-wrappers` lazily split at 533.9 kB (189.1 kB gzip), the **Waku SDK lazily split at 849.5 kB (258.2 kB gzip)** and the adapter itself 2.6 kB — none of it fetched until a transport starts.
+  - **Negative result**: `npm install @waku/sdk@0.0.36` adds **6 vulnerabilities (2 moderate, 4 high)** through `@waku/discovery`/`libp2p`/`uuid <11.1.1`. `npm audit` reports them; `npm audit fix --force` "resolves" them only by downgrading to `@waku/sdk@0.0.16`, which is a breaking downgrade of a core dependency. CI therefore reports `npm audit` without failing the build, as it has since milestone 1. Nothing about the audit is hidden.
+  - SDK notes for future work: `waitForPeers` matches the SDK's `Protocols` enum values (`lightpush`, `filter`), not `/vac/…` multiaddrs, and the encoder/decoder must come from the _node_ (`node.createEncoder`), not the module, because the node's factory fills in the routing info the Filter subscription needs.
+  - Bug found and fixed while wiring the UI: both `WalletProvider` and `MessagingProvider` memoized their service on the whole vault document, so _every_ vault write — every message stored — rebuilt the service and its subscriptions. Both now derive from stable primitives (mnemonic, address index, address) instead.
+  - React Compiler-era lint notes (these rules are errors here): a callback that closes over a ref cannot live in a memoized context value, and a function that sets state synchronously cannot be called straight from an effect — the providers use `void (async () => { … })()` and derive state during render rather than in an effect.
+
 ## Next step
 
-Milestone 5 (Waku messaging) is next: a `@waku/sdk` light node behind a service interface, contacts exchanged as QR/public-key strings, 1:1 chats on content topic `/oblivion/1/dm/<conv-id>/proto` with payloads encrypted end to end, and message history in the vault.
+Milestone 6 (pay-in-chat): send a Sepolia payment request as a chat message, have the recipient confirm it once and pay, then post the transaction hash back into the same thread — reusing the envelope's `payment-request` / `payment-receipt` message kinds and the `payments` records the vault schema already carries.

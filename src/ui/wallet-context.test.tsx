@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
-import { fakeWalletService, UnlockedVaultHarness } from '../test/wallet-harness'
+import { fakeWalletService, UnlockedVaultHarness } from '../test/ui-harness'
 import { FakeChain, createFakeSender, blockWith } from '../wallet/fake-chain'
 import type { HexString } from '../crypto/keys'
 import type { BlockLike } from '../wallet/types'

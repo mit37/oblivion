@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import App from './App'
 import { SAFETY_LABEL, SAFETY_WARNING } from './safety'
-import { offlineWalletFactory } from './test/wallet-harness'
+import { offlineWalletFactory } from './test/ui-harness'
 import { MemoryVaultStorage } from './vault/storage'
 import { Vault } from './vault/vault'
 

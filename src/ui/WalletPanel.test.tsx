@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import type { HexString } from '../crypto/keys'
-import { fakeWalletService, UnlockedVaultHarness } from '../test/wallet-harness'
+import { fakeWalletService, UnlockedVaultHarness } from '../test/ui-harness'
 import { FakeChain, blockWith, createFakeSender } from '../wallet/fake-chain'
 import type { BlockLike } from '../wallet/types'
 import { WalletPanel } from './WalletPanel'

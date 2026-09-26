@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import App from '../App'
-import { offlineWalletFactory } from '../test/wallet-harness'
+import { offlineWalletFactory } from '../test/ui-harness'
 import { MemoryVaultStorage } from '../vault/storage'
 import { Vault } from '../vault/vault'
 
@@ -56,9 +56,12 @@ describe('identity card', () => {
   it('shows the wallet address and the messaging identity separately', async () => {
     await renderUnlocked()
 
-    expect(screen.getByText("m/44'/60'/0'/0/0")).toBeVisible()
-    expect(screen.getByText("m/44'/60'/1'/0/0")).toBeVisible()
-    expect(screen.getByText(/^oblivion1/)).toBeVisible()
+    // The identity card, not the messaging panel that repeats the chat key.
+    const card = screen.getByRole('region', { name: 'Your identity' })
+
+    expect(within(card).getByText("m/44'/60'/0'/0/0")).toBeVisible()
+    expect(within(card).getByText("m/44'/60'/1'/0/0")).toBeVisible()
+    expect(within(card).getByText(/^oblivion1/)).toBeVisible()
   })
 
   it('states the network restriction in the identity card', async () => {
@@ -189,7 +192,7 @@ describe('build status card', () => {
     expect(rowFor('Ethereum Sepolia wallet (balance, receive, send, history)')).toHaveClass(
       'milestone--done',
     )
-    expect(rowFor('Waku 1:1 end-to-end encrypted messaging')).toHaveClass('milestone--planned')
+    expect(rowFor('Waku 1:1 end-to-end encrypted messaging')).toHaveClass('milestone--done')
     expect(rowFor('Pay-in-chat payment requests')).toHaveClass('milestone--planned')
   })
 })

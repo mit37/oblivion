@@ -105,6 +105,55 @@ describe('nothing sensitive is stored in plaintext', () => {
     expect(VAULT_DB_NAME).toBe('oblivion-vault')
   })
 
+  it('stores no plaintext conversation when a contact and a message are saved', async () => {
+    const { storage, vault } = await createVault('oblivion-plain-chat')
+
+    // A body and a label chosen to be unmistakable in a byte scan, plus the
+    // second half of a real identity so a partial leak is caught too.
+    const body = 'meet me at the pier at midnight'
+    const label = 'Zaphod Beeblebrox'
+    const identity = 'oblivion1A5zlp-F76klqNFb9bQIbT35zorYIHKBX-VsidRTwF2aO'
+    const conversationId = '293cbe184e4fc706bae264717df9990c'
+
+    await vault.update((document) => ({
+      ...document,
+      contacts: [
+        {
+          id: 'contact-fad4-35f7',
+          label,
+          identity,
+          publicKey: `0x${'a'.repeat(66)}`,
+          addedAt: '2026-09-26T00:00:00.000Z',
+        },
+      ],
+      messages: [
+        {
+          id: `message-${conversationId}-2026-09-26T00:00:01.000Z-31-109`,
+          conversationId,
+          direction: 'outbound',
+          body,
+          sentAt: '2026-09-26T00:00:01.000Z',
+          kind: 'text',
+        },
+      ],
+    }))
+
+    const serialized = JSON.stringify(await storage.rawRecords())
+
+    expect(serialized).not.toContain(body)
+    expect(serialized).not.toContain(label)
+    expect(serialized).not.toContain('F76klqNFb9bQIbT35zorYIHKBX-VsidRTwF2aO')
+    expect(serialized).not.toContain(conversationId)
+    expect(serialized).not.toContain('oblivion:dm')
+    expect(serialized).not.toContain('/oblivion/1')
+    // Control: the payload is real, not empty — a second vault over the same
+    // storage opens it and finds the very body the scan could not see.
+    const reopened = new Vault({ storage, kdfProfile: 'test', allowTestProfile: true })
+    await reopened.unlock(PASSWORD)
+    expect(reopened.getDocument().messages[0]?.body).toBe(body)
+    expect(reopened.getDocument().contacts[0]?.label).toBe(label)
+  })
+
   it('stores no plaintext after an update and a re-wrap', async () => {
     const { storage, vault, mnemonic } = await createVault('oblivion-plain-rewrap')
 

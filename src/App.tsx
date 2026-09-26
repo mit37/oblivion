@@ -1,7 +1,10 @@
 import { useState } from 'react'
 
+import type { MessageTransport } from './messaging/transport'
 import { SAFETY_CHAIN_NOTE, SAFETY_LABEL, SAFETY_WARNING } from './safety'
 import { Dashboard } from './ui/Dashboard'
+import { MessagingPanel } from './ui/MessagingPanel'
+import { MessagingProvider, type MessagingTransportMode } from './ui/messaging-context'
 import { VaultGate } from './ui/VaultGate'
 import { VaultProvider, useVault } from './ui/vault-context'
 import { WalletPanel } from './ui/WalletPanel'
@@ -17,17 +20,36 @@ export interface AppProps {
    * reaches Sepolia. The app itself uses the viem-backed default.
    */
   readonly walletFactory?: WalletFactory
+  /**
+   * Tests inject a messaging transport so two peers can be wired together, or a
+   * network-free one; the app defaults to the per-tab local network and waits
+   * for the user to ask for Waku.
+   */
+  readonly messagingTransportFactory?: (
+    mode: MessagingTransportMode,
+  ) => MessageTransport | Promise<MessageTransport>
 }
 
-export default function App({ vaultFactory, autoLockTarget, walletFactory }: AppProps = {}) {
+export default function App({
+  vaultFactory,
+  autoLockTarget,
+  walletFactory,
+  messagingTransportFactory,
+}: AppProps = {}) {
   return (
     <VaultProvider vaultFactory={vaultFactory} autoLockTarget={autoLockTarget}>
-      <Shell walletFactory={walletFactory} />
+      <Shell walletFactory={walletFactory} messagingTransportFactory={messagingTransportFactory} />
     </VaultProvider>
   )
 }
 
-function Shell({ walletFactory }: { readonly walletFactory?: WalletFactory }) {
+function Shell({
+  walletFactory,
+  messagingTransportFactory,
+}: {
+  readonly walletFactory?: WalletFactory
+  readonly messagingTransportFactory?: AppProps['messagingTransportFactory']
+}) {
   const { status } = useVault()
   const [gateActive, setGateActive] = useState(false)
 
@@ -59,6 +81,9 @@ function Shell({ walletFactory }: { readonly walletFactory?: WalletFactory }) {
           <WalletProvider factory={walletFactory}>
             <Dashboard />
             <WalletPanel />
+            <MessagingProvider transportFactory={messagingTransportFactory}>
+              <MessagingPanel />
+            </MessagingProvider>
           </WalletProvider>
         ) : (
           <VaultGate onFlowChange={setGateActive} />
