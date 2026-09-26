@@ -1,0 +1,16 @@
+# Build output and generated artifacts
+dist/
+coverage/
+node_modules/
+playwright-report/
+test-results/
+package-lock.json
+
+# Upstream documents copied into the repo verbatim (not ours to reformat)
+PRD.md
+STANDARDS.md
+AGENTS.md
+CLAUDE.md
+
+# Agent workspace
+.freebuff/

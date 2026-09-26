@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+coverage/
+.vite/
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Secrets — never commit these (STANDARDS §2)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.keystore
+secrets/
+
+# Model weights and third-party datasets (not used today; kept out on principle)
+*.gguf
+*.safetensors
+*.bin
+*.onnx
+*.tflite
+*.task
+data/
+
+# Recordings
+recordings/
+*.webm
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+
+# Agent workspace
+.freebuff/

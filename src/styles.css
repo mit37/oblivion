@@ -1,0 +1,182 @@
+:root {
+  color-scheme: dark;
+  --bg: #07080c;
+  --bg-elevated: #0e1119;
+  --border: #1e2634;
+  --text: #e9eef7;
+  --muted: #8e99ab;
+  --accent: #8be9fd;
+  --warn-bg: #241a06;
+  --warn-border: #b45309;
+  --warn-text: #fcd34d;
+  --ok: #4ade80;
+
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    sans-serif;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(1100px 520px at 50% -10%, #121a2b 0%, var(--bg) 62%), var(--bg);
+  color: var(--text);
+}
+
+#root {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 32px 20px 56px;
+  display: grid;
+  gap: 18px;
+}
+
+a {
+  color: var(--accent);
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: 1.05rem;
+  margin-bottom: 6px;
+}
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--accent);
+  font-size: 1.35rem;
+}
+
+.tagline {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.pill {
+  border: 1px solid var(--warn-border);
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.safety-banner {
+  border: 1px solid var(--warn-border);
+  border-left-width: 4px;
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: grid;
+  gap: 4px;
+  font-size: 0.92rem;
+}
+
+.safety-detail {
+  color: #e7c56a;
+  font-size: 0.85rem;
+}
+
+.card {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.card > p {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.milestones {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.milestone {
+  display: grid;
+  grid-template-columns: 2.2rem 1fr auto;
+  align-items: baseline;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  font-size: 0.9rem;
+}
+
+.milestone:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.milestone-id {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.milestone-status {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.milestone--done .milestone-status {
+  color: var(--ok);
+}
+
+.milestone--planned .milestone-title {
+  color: var(--muted);
+}
+
+.footer {
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
