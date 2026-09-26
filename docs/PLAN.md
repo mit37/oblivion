@@ -117,9 +117,10 @@ Ground rules carried from the PRD, in force for every milestone:
 - [x] `scripts/report.mjs` + `npm run report` / `npm run report:check`: the README Results table is generated, not typed. The script runs the suite with Vitest's JSON reporter (total, per-module and the pay-in-chat test duration), builds and reads the chunk sizes out of Vite's own output, runs Playwright with its JSON reporter, times one Argon2id derivation at the `interactive` profile, and records `npm audit`'s counts. Raw measurements go to `docs/report.json`; the README block between `<!-- report:start -->` and `<!-- report:end -->` is rewritten from it and Prettier-formatted. `npm run report:check` (in CI) fails if the table drifts from the record, and refuses to report a failed or empty measurement as a number
 - [x] Not-measured rows instead of guesses: real Sepolia RPC response times and mobile numbers say why, and the live Waku rows are measured only by an opt-in run (`WAKU_LIVE=1 npm run report`, or `-- --only=live` for just those rows) — otherwise they say `opt-in: needs outbound network access`. A live run that fails is written up as a failure with its message, never as a number
 - [x] The e2e stub's gas numbers and the README's fee row now come from one fixture (`e2e/stub-chain.json`), so the worked example cannot drift from the assertion it belongs to
-- [ ] README completed from the STANDARDS §4 template
-- [ ] Trim `Design decisions` to the template's 3–6 headline trade-offs, moving the long tail into the architecture section (STANDARDS §4 asks for 3–6 bullets; the first six milestones accumulated ~20) and add the demo asset above the fold
-- [ ] GIF (or `docs/DEMO.md` script) of two browsers chatting and paying on Sepolia
+- [x] `Design decisions` trimmed to the template's six headline trade-offs, with the long tail (and the bug found while wiring the chat) moved into `### Implementation notes` under the architecture section
+- [x] `docs/DEMO.md`: the shot list for the recording — two origins for two vaults, the funding note (only the payer needs Sepolia ETH), four shots (two identities, sealed chat both ways, pay-in-chat including the decline path, and the refusals), and what to record afterwards
+- [ ] The recording itself, and the demo asset above the fold in the README
+- [ ] README completed from the STANDARDS §4 template (the demo asset is the last missing piece)
 - [ ] `gitleaks detect` run locally before the first push
 - [ ] Tag `v2.0.0`
 
