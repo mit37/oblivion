@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import App from './App'
 import { SAFETY_LABEL, SAFETY_WARNING } from './safety'
+import { offlineWalletFactory } from './test/wallet-harness'
 import { MemoryVaultStorage } from './vault/storage'
 import { Vault } from './vault/vault'
 
@@ -13,7 +14,13 @@ function testVault(storage: MemoryVaultStorage): Vault {
 }
 
 function renderApp(storage = new MemoryVaultStorage()): MemoryVaultStorage {
-  render(<App vaultFactory={() => testVault(storage)} autoLockTarget={new EventTarget()} />)
+  render(
+    <App
+      vaultFactory={() => testVault(storage)}
+      autoLockTarget={new EventTarget()}
+      walletFactory={offlineWalletFactory()}
+    />,
+  )
   return storage
 }
 

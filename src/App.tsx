@@ -4,23 +4,30 @@ import { SAFETY_CHAIN_NOTE, SAFETY_LABEL, SAFETY_WARNING } from './safety'
 import { Dashboard } from './ui/Dashboard'
 import { VaultGate } from './ui/VaultGate'
 import { VaultProvider, useVault } from './ui/vault-context'
+import { WalletPanel } from './ui/WalletPanel'
+import { WalletProvider, type WalletFactory } from './ui/wallet-context'
 import type { Vault } from './vault/vault'
 
 export interface AppProps {
   /** Tests inject a vault with in-memory storage and the test KDF profile. */
   readonly vaultFactory?: () => Vault
   readonly autoLockTarget?: EventTarget
+  /**
+   * Tests inject a wallet backed by the in-memory chain double, so no test ever
+   * reaches Sepolia. The app itself uses the viem-backed default.
+   */
+  readonly walletFactory?: WalletFactory
 }
 
-export default function App({ vaultFactory, autoLockTarget }: AppProps = {}) {
+export default function App({ vaultFactory, autoLockTarget, walletFactory }: AppProps = {}) {
   return (
     <VaultProvider vaultFactory={vaultFactory} autoLockTarget={autoLockTarget}>
-      <Shell />
+      <Shell walletFactory={walletFactory} />
     </VaultProvider>
   )
 }
 
-function Shell() {
+function Shell({ walletFactory }: { readonly walletFactory?: WalletFactory }) {
   const { status } = useVault()
   const [gateActive, setGateActive] = useState(false)
 
@@ -49,7 +56,10 @@ function Shell() {
         {status === 'loading' ? (
           <p className="muted">Opening Oblivion…</p>
         ) : status === 'unlocked' && !gateActive ? (
-          <Dashboard />
+          <WalletProvider factory={walletFactory}>
+            <Dashboard />
+            <WalletPanel />
+          </WalletProvider>
         ) : (
           <VaultGate onFlowChange={setGateActive} />
         )}

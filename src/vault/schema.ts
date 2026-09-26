@@ -12,8 +12,13 @@ import {
   type HexString,
   type MnemonicWordCount,
 } from '../crypto/keys'
+import type { TokenInfo } from '../wallet/types'
 
-export const VAULT_SCHEMA_VERSION = 1
+/**
+ * 1 → identity, settings, contacts, messages, payments.
+ * 2 → adds the watched ERC-20 token list.
+ */
+export const VAULT_SCHEMA_VERSION = 2
 
 /** Auto-lock choices offered in Settings, in minutes. */
 export const AUTO_LOCK_CHOICES_MINUTES = [1, 5, 15, 60] as const
@@ -74,6 +79,7 @@ export interface VaultDocument {
   readonly contacts: readonly ContactRecord[]
   readonly messages: readonly MessageRecord[]
   readonly payments: readonly PaymentRecord[]
+  readonly tokens: readonly TokenInfo[]
 }
 
 export interface CreateDocumentOptions {
@@ -101,6 +107,7 @@ export function createEmptyDocument(options: CreateDocumentOptions): VaultDocume
     contacts: [],
     messages: [],
     payments: [],
+    tokens: [],
   }
 }
 
@@ -138,6 +145,29 @@ export function migrateDocument(input: unknown): VaultDocument {
     contacts: asArray(record.contacts, 'contacts').map(asContactRecord),
     messages: asArray(record.messages, 'messages').map(asMessageRecord),
     payments: asArray(record.payments, 'payments').map(asPaymentRecord),
+    tokens: asArray(record.tokens, 'tokens').map(asTokenInfo),
+  }
+}
+
+function asTokenInfo(value: unknown): TokenInfo {
+  const record = asRecord(value, 'token')
+  const address = asString(record.address, 'token.address')
+
+  if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+    throw new MalformedPayloadError('token.address must be a 20-byte hex address')
+  }
+
+  const decimals = asNumberOrUndefined(record.decimals) ?? 18
+
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36) {
+    throw new MalformedPayloadError('token.decimals must be an integer between 0 and 36')
+  }
+
+  return {
+    address: address as HexString,
+    name: asString(record.name, 'token.name'),
+    symbol: asString(record.symbol, 'token.symbol'),
+    decimals,
   }
 }
 

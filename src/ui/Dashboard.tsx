@@ -263,8 +263,9 @@ export function Dashboard() {
       <section className="card" aria-labelledby="build-title">
         <h2 id="build-title">Build status</h2>
         <p className="muted small">
-          The vault, the crypto core and CI exist. The wallet, messaging and pay-in-chat flows are
-          still to come, so nothing here holds funds or conversations yet.
+          The vault, the crypto core, CI and the Sepolia wallet exist. Messaging and pay-in-chat are
+          still to come, so nothing here holds conversations yet — and the wallet only ever touches
+          testnet.
         </p>
 
         <ol className="milestones">

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import App from '../App'
+import { offlineWalletFactory } from '../test/wallet-harness'
 import { MemoryVaultStorage } from '../vault/storage'
 import { Vault } from '../vault/vault'
 import { CONFIRM_WORD_INDICES } from './gate-copy'
@@ -17,7 +18,13 @@ async function renderCreating() {
   const storage = new MemoryVaultStorage()
   const user = userEvent.setup()
 
-  render(<App vaultFactory={() => testVault(storage)} autoLockTarget={new EventTarget()} />)
+  render(
+    <App
+      vaultFactory={() => testVault(storage)}
+      autoLockTarget={new EventTarget()}
+      walletFactory={offlineWalletFactory()}
+    />,
+  )
   await screen.findByRole('heading', { name: 'Create your vault' })
 
   return { user, storage, view: document.body }
@@ -125,7 +132,13 @@ describe('unlocking a vault', () => {
     setup.lock()
 
     const user = userEvent.setup()
-    render(<App vaultFactory={() => testVault(storage)} autoLockTarget={new EventTarget()} />)
+    render(
+      <App
+        vaultFactory={() => testVault(storage)}
+        autoLockTarget={new EventTarget()}
+        walletFactory={offlineWalletFactory()}
+      />,
+    )
     await screen.findByRole('heading', { name: 'Unlock your vault' })
 
     await user.type(screen.getByLabelText('Password'), 'definitely not it')
@@ -141,7 +154,13 @@ describe('unlocking a vault', () => {
     setup.lock()
 
     const user = userEvent.setup()
-    render(<App vaultFactory={() => testVault(storage)} autoLockTarget={new EventTarget()} />)
+    render(
+      <App
+        vaultFactory={() => testVault(storage)}
+        autoLockTarget={new EventTarget()}
+        walletFactory={offlineWalletFactory()}
+      />,
+    )
     await screen.findByRole('heading', { name: 'Unlock your vault' })
 
     await user.type(screen.getByLabelText('Password'), PASSWORD)
@@ -156,7 +175,13 @@ describe('unlocking a vault', () => {
     await setup.create(PASSWORD)
     setup.lock()
 
-    render(<App vaultFactory={() => testVault(storage)} autoLockTarget={new EventTarget()} />)
+    render(
+      <App
+        vaultFactory={() => testVault(storage)}
+        autoLockTarget={new EventTarget()}
+        walletFactory={offlineWalletFactory()}
+      />,
+    )
 
     expect(
       await screen.findByText(/key exists only while this tab has your password/i),

@@ -69,11 +69,12 @@ describe('createEmptyDocument', () => {
     }
   })
 
-  it('starts with no contacts, messages or payments', () => {
+  it('starts with no contacts, messages, payments or tokens', () => {
     const document = validDocument()
     expect(document.contacts).toHaveLength(0)
     expect(document.messages).toHaveLength(0)
     expect(document.payments).toHaveLength(0)
+    expect(document.tokens).toHaveLength(0)
   })
 
   it('normalizes a messy mnemonic', () => {
@@ -194,11 +195,58 @@ describe('migrateDocument', () => {
 
   it('defaults missing collections to empty arrays', () => {
     const document = migrateDocument(
-      validPayload({ contacts: undefined, messages: [], payments: null }),
+      validPayload({ contacts: undefined, messages: [], payments: null, tokens: undefined }),
     )
     expect(document.contacts).toEqual([])
     expect(document.messages).toEqual([])
     expect(document.payments).toEqual([])
+    expect(document.tokens).toEqual([])
+  })
+
+  it('upgrades a version 1 document by adding an empty token list', () => {
+    const document = migrateDocument(validPayload({ schemaVersion: 1, tokens: undefined }))
+
+    expect(document.schemaVersion).toBe(VAULT_SCHEMA_VERSION)
+    expect(document.tokens).toEqual([])
+  })
+
+  it('keeps a watched token and its decimals', () => {
+    const document = migrateDocument(
+      validPayload({
+        tokens: [
+          { address: `0x${'33'.repeat(20)}`, name: 'Test USD', symbol: 'TUSD', decimals: 6 },
+        ],
+      }),
+    )
+
+    expect(document.tokens[0]?.symbol).toBe('TUSD')
+    expect(document.tokens[0]?.decimals).toBe(6)
+  })
+
+  it('defaults missing token decimals to 18', () => {
+    const document = migrateDocument(
+      validPayload({ tokens: [{ address: `0x${'33'.repeat(20)}`, name: 'X', symbol: 'X' }] }),
+    )
+
+    expect(document.tokens[0]?.decimals).toBe(18)
+  })
+
+  it('rejects a token without a valid address', () => {
+    expect(() =>
+      migrateDocument(
+        validPayload({ tokens: [{ address: '0x12', name: 'X', symbol: 'X', decimals: 18 }] }),
+      ),
+    ).toThrow(MalformedPayloadError)
+  })
+
+  it('rejects an implausible token decimals value', () => {
+    expect(() =>
+      migrateDocument(
+        validPayload({
+          tokens: [{ address: `0x${'33'.repeat(20)}`, name: 'X', symbol: 'X', decimals: 99 }],
+        }),
+      ),
+    ).toThrow(MalformedPayloadError)
   })
 
   it('rejects a collection that is not an array', () => {

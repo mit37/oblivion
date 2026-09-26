@@ -15,8 +15,8 @@ Ground rules carried from the PRD, in force for every milestone:
 
 ## Definition of Done (PRD §7)
 
-- [ ] Crypto tests incl. BIP-39/44 vectors and tamper detection (≥60 tests)
-- [ ] Mainnet refusal enforced by a test
+- [x] Crypto tests incl. BIP-39/44 vectors and tamper detection (≥60 tests) — 175 crypto tests
+- [x] Mainnet refusal enforced by a test — `wallet/chain.test.ts` (guard) and `ui/wallet-context.test.tsx` (no chain call happens after the refusal)
 - [ ] No plaintext at rest (test-scanned)
 - [ ] Two-party E2EE chat + pay-in-chat demo recorded on testnet
 - [ ] `docs/SECURITY.md` threat model; "unaudited, testnet only" banner in app + README
@@ -61,12 +61,19 @@ Ground rules carried from the PRD, in force for every milestone:
 - [x] The UI never offers the test KDF profile: only an injected test vault can request it, and a stored record asking for weaker parameters is refused (`UnusableRecordError`)
 - [x] 130 vault tests plus 25 UI/app tests; 330 tests in the whole suite
 
-### 4. Wallet (Sepolia) — not started
+### 4. Wallet (Sepolia) — **complete**
 
-- [ ] `viem` public client + wallet client; chain guard: mainnet chain ID → throws (test)
-- [ ] Balance, receive (QR), send ETH with gas estimate + confirmation screen
-- [ ] Transaction history via a configurable public RPC, no API key required by default
-- [ ] ERC-20 balance view for a token list
+- [x] `src/wallet/chain.ts`: hard-coded Sepolia chain ID, `MainnetRefusedError` for chain 1 and `UnsupportedChainError` for anything else, plus an http(s)-only RPC resolver (`VITE_SEPOLIA_RPC_URL` → public endpoint, no key needed)
+- [x] `src/wallet/clients.ts`: viem public client and wallet client behind a narrow `ChainReader` / `ChainSender` seam, so every test drives an in-memory chain double instead of the network
+- [x] `src/wallet/service.ts`: balance, fee estimate (gas, EIP-1559 caps, worst-case fee, total required), send with a balance check that includes the fee, a bounded block-scan history, receipt status, ERC-20 metadata and balances
+- [x] `src/wallet/format.ts`: EIP-681 payment URIs (build + parse, other chains refused), ETH/token parsing and formatting, address validation, `shortenAddress`, and the send-form resolver that accepts an address or a payment link
+- [x] Balance, receive (QR), send ETH with gas estimate + confirmation screen (`src/ui/WalletPanel.tsx`)
+- [x] Transaction history via a configurable public RPC, no API key required by default
+- [x] ERC-20 balance view for a token list, stored in the vault and read from the contract before it is saved
+- [x] QR rendering with no runtime dependency on canvas: `qrcode` produces the matrix, `src/ui/qr.ts` draws the SVG (quiet zone, merged dark runs, `data-qr-*` for tests)
+- [x] Wallet state is derived from the unlocked vault and tagged with the service that produced it, so a slow reply from a locked vault or another account cannot be shown; signing key and service disappear on lock (tested)
+- [x] 131 new tests (wallet engine 88, wallet UI 24, QR 19), 467 in the whole suite; plus a browser test that drives the wallet against a stubbed Sepolia JSON-RPC endpoint (`e2e/wallet.spec.ts`)
+- [x] Live check against the real public endpoint on the built app: the balance read, the QR, the fee review and the ERC-20 form all rendered correctly in Chromium
 
 ### 5. Waku messaging — not started
 
@@ -85,6 +92,7 @@ Ground rules carried from the PRD, in force for every milestone:
 ### 7. Security write-up — not started
 
 - [ ] `docs/SECURITY.md`: threat model (what it protects against; what it does not — compromised device, Waku metadata, RPC provider seeing addresses), crypto parameter choices, known gaps
+  - Note for this section: the wallet adds one more third party to the list — the RPC provider sees the wallet address on every balance read, history scan and broadcast. That is named in the README limitations already and must be in the threat model.
 
 ### 8. Ship — not started
 
@@ -120,6 +128,12 @@ Recorded here as milestones complete, so results are traceable:
   - BIP-39 seeds are checked twice: against the published Trezor vector and against Node's own PBKDF2-HMAC-SHA512, an independent implementation.
   - Cross-realm note for future milestones: inside jsdom, `TextEncoder` returns another realm's `Uint8Array`, so byte checks use a realm-agnostic tag test (`isUint8Array`) instead of `instanceof`.
 
+- **Milestone 4**: 467 tests passing across 23 files — `wallet/service` 38, `wallet/format` 36, `wallet/chain` 14, `ui/wallet-context` 13, `ui/WalletPanel` 11, `ui/qr` 14, `ui/QrCode` 5, plus 5 new vault-schema tests for the token list and 1 new dashboard test. Whole suite runs in ~28 s on this machine.
+  - End-to-end: 2 Playwright tests passing — the shell smoke test and `e2e/wallet.spec.ts`, which creates a vault in a real browser, then balances, sends (21 000 gas × 40 gwei cap = 0.00084 ETH worst case, total 0.00184 ETH), reads a receipt and scans history against a **stubbed** Sepolia endpoint (`eth_fillTransaction`, `eth_sendRawTransaction`, `eth_getTransactionReceipt`, `eth_getBlockByNumber`). viem, the chain guard, the fee maths and the UI are real; only the chain is canned, so CI needs no outbound network.
+  - Live check on the built app (Chromium, real public RPC): created a vault, reached the dashboard, and the wallet read a real Sepolia balance of 0 ETH through `https://ethereum-sepolia-rpc.publicnode.com`, drew the payment QR, and showed the send form. No API key and no funded key anywhere.
+  - Build output: `index` 669.2 kB (213.7 kB gzip), with `libsodium-wrappers` still split into its own 533.9 kB chunk.
+  - Lint note for future milestones: the React Compiler-era hooks rules (`react-hooks/set-state-in-effect`, `react-hooks/refs`) are **errors** here. A callback that touches a ref cannot be put into a memoized context value, and a function that sets state synchronously cannot be called straight from an effect — the wallet provider derives its service during render and tags loaded state with the service that produced it instead of guarding with a mutable counter.
+
 ## Next step
 
-Milestone 4 (the Sepolia wallet) is next: balance, receive with a QR, send with a gas estimate and confirmation, history from a public RPC, an ERC-20 view, and the chain guard that refuses anything but Sepolia — backed by a test.
+Milestone 5 (Waku messaging) is next: a `@waku/sdk` light node behind a service interface, contacts exchanged as QR/public-key strings, 1:1 chats on content topic `/oblivion/1/dm/<conv-id>/proto` with payloads encrypted end to end, and message history in the vault.

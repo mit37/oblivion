@@ -324,6 +324,116 @@ h3 {
   color: var(--muted);
 }
 
+.wallet-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.wallet-head h2,
+.wallet-head h3 {
+  margin: 0;
+}
+
+.wallet-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.wallet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.wallet-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 0.7rem;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.wallet-card h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.wallet-card h4 {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+}
+
+.wallet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.balance {
+  margin: 0;
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.review {
+  margin-top: 0.5rem;
+  padding: 0.85rem;
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  border-radius: 0.6rem;
+}
+
+.tx-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tx-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.tx-direction {
+  min-width: 4.5rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tx-direction--in {
+  color: #4ade80;
+}
+
+.tx-direction--out {
+  color: #fbbf24;
+}
+
+.tx-direction--self {
+  color: #94a3b8;
+}
+
+.copy {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .footer {
   color: var(--muted);
   font-size: 0.82rem;
