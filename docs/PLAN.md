@@ -49,13 +49,17 @@ Ground rules carried from the PRD, in force for every milestone:
 - [x] Tamper detection: flipped ciphertext, tag, nonce, associated data and envelope bytes all fail with `DecryptionFailedError`
 - [x] 175 crypto tests (requirement: ≥60); 177 tests in the whole suite
 
-### 3. Vault — not started
+### 3. Vault — **complete**
 
-- [ ] Vault create / unlock / lock / re-wrap with a password, stored in IndexedDB (`idb`)
-- [ ] Auto-lock after inactivity; manual lock
-- [ ] Password change re-wraps the vault key
-- [ ] Test scans stored blobs and proves no plaintext is stored
-- [ ] Mnemonic backup flow with a confirm-words step
+- [x] `src/vault/vault.ts`: create / unlock / lock / update / re-wrap, with one IndexedDB record holding only the Argon2id parameters, the salt and the sealed envelope
+- [x] `src/vault/storage-idb.ts`: `idb`-backed storage (plus an in-memory implementation for tests and mock mode)
+- [x] `src/vault/schema.ts`: versioned document with a migration that validates and fills defaults, refuses the weak test profile and rejects unknown message kinds
+- [x] Auto-lock after inactivity (`src/vault/auto-lock.ts`, injectable clock, activity events) plus manual lock; a reload always starts locked
+- [x] Password change re-wraps the document under a fresh salt and key; a test proves the old password stops working
+- [x] `src/vault/no-plaintext.test.ts` scans the real IndexedDB contents for the password, the mnemonic, derived keys and addresses, with a control test showing the mnemonic _is_ inside the sealed payload
+- [x] Mnemonic backup flow with a confirm-words step, and a dashboard for identity, auto-lock, password change, phrase reveal and deletion
+- [x] The UI never offers the test KDF profile: only an injected test vault can request it, and a stored record asking for weaker parameters is refused (`UnusableRecordError`)
+- [x] 130 vault tests plus 25 UI/app tests; 330 tests in the whole suite
 
 ### 4. Wallet (Sepolia) — not started
 
@@ -108,6 +112,9 @@ Recorded here as milestones complete, so results are traceable:
   - `npm install`: 237 packages, 0 vulnerabilities reported by `npm audit`.
   - Note for future milestones: `vite preview` binds `::1` on this machine, so the Playwright config pins `--host 127.0.0.1`; without it the readiness probe on `127.0.0.1` times out.
   - CI cannot be observed as green until the repo is pushed to GitHub.
+- **Milestone 3**: 330 tests passing across 16 files — `vault/vault` 46, `vault/schema` 37, `vault/auto-lock` 15, `vault/storage` 12, `vault/identity` 10, `vault/no-plaintext` 10, `ui/Dashboard` 10, `ui/VaultGate` 10, `App` 5. Whole suite runs in ~21 s on this machine.
+  - Browser walkthrough on the built app (Chromium, `vite preview`): created a vault end to end (real Argon2id in WASM), wrote down the 12-word phrase, confirmed three words, reached the dashboard, reloaded to find the unlock gate (so a reload starts locked), unlocked with the same address, then deleted the vault and confirmed the object store held 0 records.
+  - Build output: `index` 400.6 kB (133.8 kB gzip) plus a lazily loaded `libsodium-wrappers` chunk of 533.9 kB (189.1 kB gzip), which is only fetched on the first crypto call.
 - **Milestone 2**: 177 tests passing across 8 files — `crypto/keys` 49, `crypto/aead` 39, `crypto/kdf` 31, `crypto/encoding` 20, `crypto/vectors` 17, `crypto/signatures` 13, `crypto/random` 6, `App` 2. Whole suite runs in ~7 s on this machine.
   - Argon2id at the `interactive` profile (64 MiB, 3 passes) measured at ~0.41 s for one derivation on this machine; the `test` profile (8 MiB, 1 pass) keeps the suite fast.
   - BIP-39 seeds are checked twice: against the published Trezor vector and against Node's own PBKDF2-HMAC-SHA512, an independent implementation.
@@ -115,4 +122,4 @@ Recorded here as milestones complete, so results are traceable:
 
 ## Next step
 
-Milestone 3 (the vault) is next: create/unlock/lock/re-wrap on top of the crypto module, stored in IndexedDB, with a test that scans the stored records for plaintext.
+Milestone 4 (the Sepolia wallet) is next: balance, receive with a QR, send with a gas estimate and confirmation, history from a public RPC, an ERC-20 view, and the chain guard that refuses anything but Sepolia — backed by a test.

@@ -1,29 +1,29 @@
+import { useState } from 'react'
+
 import { SAFETY_CHAIN_NOTE, SAFETY_LABEL, SAFETY_WARNING } from './safety'
+import { Dashboard } from './ui/Dashboard'
+import { VaultGate } from './ui/VaultGate'
+import { VaultProvider, useVault } from './ui/vault-context'
+import type { Vault } from './vault/vault'
 
-type MilestoneStatus = 'done' | 'planned'
-
-interface Milestone {
-  readonly id: number
-  readonly title: string
-  readonly status: MilestoneStatus
+export interface AppProps {
+  /** Tests inject a vault with in-memory storage and the test KDF profile. */
+  readonly vaultFactory?: () => Vault
+  readonly autoLockTarget?: EventTarget
 }
 
-/**
- * The PRD §5 milestones, shown in the shell so the demo always says honestly
- * what exists today and what does not yet.
- */
-const MILESTONES: readonly Milestone[] = [
-  { id: 1, title: 'Scaffold, CI, static deploy', status: 'done' },
-  { id: 2, title: 'Crypto module (Argon2id, XChaCha20-Poly1305, BIP-39/44)', status: 'planned' },
-  { id: 3, title: 'Encrypted vault (create / unlock / lock / re-wrap)', status: 'planned' },
-  { id: 4, title: 'Ethereum Sepolia wallet (balance, receive, send, history)', status: 'planned' },
-  { id: 5, title: 'Waku 1:1 end-to-end encrypted messaging', status: 'planned' },
-  { id: 6, title: 'Pay-in-chat payment requests', status: 'planned' },
-  { id: 7, title: 'Security write-up (docs/SECURITY.md threat model)', status: 'planned' },
-  { id: 8, title: 'README, demo recording, tag v2.0.0', status: 'planned' },
-]
+export default function App({ vaultFactory, autoLockTarget }: AppProps = {}) {
+  return (
+    <VaultProvider vaultFactory={vaultFactory} autoLockTarget={autoLockTarget}>
+      <Shell />
+    </VaultProvider>
+  )
+}
 
-export default function App() {
+function Shell() {
+  const { status } = useVault()
+  const [gateActive, setGateActive] = useState(false)
+
   return (
     <>
       <header className="topbar">
@@ -45,23 +45,14 @@ export default function App() {
         <p className="safety-detail">{SAFETY_CHAIN_NOTE}</p>
       </aside>
 
-      <main className="card">
-        <h2>Build status</h2>
-        <p>
-          Milestone 1 of 8 — scaffold, CI and static deploy. Nothing in this shell holds keys, funds
-          or messages yet.
-        </p>
-        <ol className="milestones">
-          {MILESTONES.map((milestone) => (
-            <li key={milestone.id} className={`milestone milestone--${milestone.status}`}>
-              <span className="milestone-id">{String(milestone.id).padStart(2, '0')}</span>
-              <span className="milestone-title">{milestone.title}</span>
-              <span className="milestone-status">
-                {milestone.status === 'done' ? 'done' : 'planned'}
-              </span>
-            </li>
-          ))}
-        </ol>
+      <main className="shell-main">
+        {status === 'loading' ? (
+          <p className="muted">Opening Oblivion…</p>
+        ) : status === 'unlocked' && !gateActive ? (
+          <Dashboard />
+        ) : (
+          <VaultGate onFlowChange={setGateActive} />
+        )}
       </main>
 
       <footer className="footer">
