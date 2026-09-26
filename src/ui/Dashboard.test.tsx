@@ -195,7 +195,8 @@ describe('build status card', () => {
     expect(rowFor('Waku 1:1 end-to-end encrypted messaging')).toHaveClass('milestone--done')
     expect(rowFor('Pay-in-chat payment requests')).toHaveClass('milestone--done')
     expect(rowFor('Security write-up (docs/SECURITY.md threat model)')).toHaveClass(
-      'milestone--planned',
+      'milestone--done',
     )
+    expect(rowFor('README, demo recording, tag v2.0.0')).toHaveClass('milestone--planned')
   })
 })

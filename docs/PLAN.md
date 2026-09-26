@@ -19,7 +19,7 @@ Ground rules carried from the PRD, in force for every milestone:
 - [x] Mainnet refusal enforced by a test — `wallet/chain.test.ts` (guard) and `ui/wallet-context.test.tsx` (no chain call happens after the refusal)
 - [x] No plaintext at rest (test-scanned) — `vault/no-plaintext.test.ts` scans the real IndexedDB record for the password, the mnemonic, derived keys, addresses **and, since milestone 5, a contact label, an identity string, a conversation id, a topic string and a message body** (`oblivion:dm`/`/oblivion/1` included), with a control that reopens the same record and reads the body back
 - [ ] Two-party E2EE chat + pay-in-chat demo recorded on testnet — both are built: the two-party chat **was verified live** (two browsers, two unrelated identities, sealed DMs each way over the public Waku network, below) and pay-in-chat ships in milestone 6. What is missing is the screen recording (milestone 8)
-- [ ] `docs/SECURITY.md` threat model; "unaudited, testnet only" banner in app + README — the banner is in place (`src/safety.ts`, README header, `e2e/smoke.spec.ts` asserts it); the threat model is milestone 7
+- [x] `docs/SECURITY.md` threat model; "unaudited, testnet only" banner in app + README — the banner is in place (`src/safety.ts`, README header, `e2e/smoke.spec.ts` asserts it) and the threat model was written at milestone 7
 - [ ] CI green; tag v2.0.0 — CI is configured and everything it runs passes locally, but the repo has not been pushed, so no green run can be shown yet
 
 ---
@@ -101,15 +101,22 @@ Ground rules carried from the PRD, in force for every milestone:
 - [x] Tests: 23 codec tests (`messaging/payments.test.ts`), 11 new service tests (28 in that file), 6 new UI tests (19 in `ui/messaging-context.test.tsx`, including request → pay → hash-in-thread, decline, shortfall, and an unreadable payment frame), 4 new vault-schema tests for the nullable payer and the v2 → v3 upgrade; 589 in the whole suite
 - [ ] Not done, and named: no refund path, no expiry on a request (a stale request stays payable), the posted hash is **not** confirmed on-chain by the chat itself (the payer's wallet read and the explorer link are the check), no fiat amount, one request at a time, and the note is only as private as the envelope
 
-### 7. Security write-up — not started
+### 7. Security write-up — **complete**
 
-- [ ] `docs/SECURITY.md`: threat model (what it protects against; what it does not — compromised device, Waku metadata, RPC provider seeing addresses), crypto parameter choices, known gaps
-  - Note for this section: the wallet adds one more third party to the list — the RPC provider sees the wallet address on every balance read, history scan and broadcast. That is named in the README limitations already and must be in the threat model.
+- [x] `docs/SECURITY.md`: an assets table (where each secret lives and what protects it, including the note that the vault key is zeroed while the decrypted document is a JavaScript value that cannot be), a trust-boundary diagram, and the two flows that leave the device
+- [x] What is defended, each claim named with the code that enforces it and the test that pins it: relay opacity via per-message ephemeral keys, theft at rest (Argon2id plus the plaintext scan with its control), parameter-downgrade refusal, the hostile contact (signature, conversation binding, authenticated `kind`), the wallet's mainnet refusal with no request made, and pay-in-chat's request/receipt semantics
+- [x] What is **not** defended, as an explicit list rather than an omission: a compromised device or extension, no Content-Security-Policy (Pages cannot set headers and no meta tag is set), JavaScript strings that cannot be wiped, no forward secrecy/ratchet/deniability, replay with no freshness bound, unpadded length and timing metadata, bootstrap peers seeing the IP and topics, no Store history, pasted-key contacts with no transparency, `payTo` not bound to the contact, an unverified receipt hash, `from: null` and no reconciliation, no expiry/refund, the RPC provider, 12-block history, the `@waku/sdk` advisories, Actions pinned by mutable tags, `gitleaks` in CI only, and unaudited WASM/JS running in a browser tab
+- [x] Crypto choices with their reasons: the Argon2id profiles and why the weak one cannot ship, the `oc1` envelope and its associated data, `oblivion/vault/v1` + salt and `oblivion/1/dm` as domain separation, RFC 6979 deterministic signatures and what signatures give up (deniability), and why no primitive is hand-rolled
+- [x] Pay-in-chat analysed on its own terms: a request proves authenticity, not that the payee address belongs to the contact; a receipt is a claim until the explorer confirms it; the local ledger can be partial by design
+- [x] The RPC provider is in the threat model as a third party (the note left here at milestone 4), next to the Waku relay
+- [x] Reporting paragraph: no security team, no bounty, how to report without pasting secrets, and when this document gets revised (milestone 8, with the regenerated numbers)
+- [x] The banner is unchanged and still asserted by `e2e/smoke.spec.ts`, the README header and `src/safety.ts`
 
 ### 8. Ship — not started
 
 - [ ] README completed from the STANDARDS §4 template; every number generated by a script
 - [ ] Test-count script wired into the README (no typed numbers)
+- [ ] Trim `Design decisions` to the template's 3–6 headline trade-offs, moving the long tail into the architecture section (STANDARDS §4 asks for 3–6 bullets; the first six milestones accumulated ~20)
 - [ ] GIF (or `docs/DEMO.md` script) of two browsers chatting and paying on Sepolia
 - [ ] `gitleaks detect` run locally before the first push
 - [ ] Tag `v2.0.0`
@@ -164,6 +171,9 @@ Recorded here as milestones complete, so results are traceable:
   - Bug found and fixed while wiring the UI: both `WalletProvider` and `MessagingProvider` memoized their service on the whole vault document, so _every_ vault write — every message stored — rebuilt the service and its subscriptions. Both now derive from stable primitives (mnemonic, address index, address) instead.
   - React Compiler-era lint notes (these rules are errors here): a callback that closes over a ref cannot live in a memoized context value, and a function that sets state synchronously cannot be called straight from an effect — the providers use `void (async () => { … })()` and derive state during render rather than in an effect.
 
+- **Milestone 7**: a documentation milestone, so its numbers are the ones it describes. `npm run verify` green on the milestone-6 code: 589 tests across 30 files (2 skipped), build, and 2 Playwright tests in 5.2 s. The only code edits that came with it are `MILESTONES_DONE = 7`, the dashboard's build-status copy and the dashboard test — all covered by the suite.
+  - `docs/SECURITY.md` is written from the code, not from memory: every section names the module and the test file behind it, and the claims that cannot be tested here (an audit; a privacy bubble around the whole app) are stated as absent rather than implied.
+  - Deliberately in the "not defended" list instead of left implicit: no CSP, unzeroable JavaScript strings, the unkeyed conversation-id hash, unpadded lengths, mutable Action tags, and the `@waku/sdk` audit finding.
 - **Milestone 6**: 589 tests passing across 30 files (2 more skipped), 44 of them new — `messaging/payments` 23, `messaging/service` 28 (11 new), `ui/messaging-context` 19 (6 new), `vault/schema` 46 (4 new). Whole suite runs in ~36 s on this machine.
   - Build output: `index` 702.0 kB (222.2 kB gzip), `libsodium-wrappers` 533.9 kB (189.1 kB gzip), the Waku SDK 849.5 kB (258.2 kB gzip), the Waku adapter 2.6 kB, `ccip` 2.9 kB, CSS 6.3 kB (2.0 kB gzip).
   - Protocol note: the message `kind` sits inside the canonical header (between the ephemeral public key and the timestamp), so it is covered by both the compact signature and the AEAD's associated data. Re-labelling a frame fails to open or fails verification; tests assert both directions.
@@ -172,4 +182,4 @@ Recorded here as milestones complete, so results are traceable:
 
 ## Next step
 
-Milestone 7 (security write-up): `docs/SECURITY.md` — the threat model for everything built so far (what the vault, the envelope, the wallet and the payment ledger do and do not protect; the three third parties that still learn something: a Waku relay, the RPC provider and the payer's own chain history), the crypto parameter choices with their reasoning, and the known gaps (no forward secrecy, no Store history, the topic deviation, remote-code-free but unaudited dependencies) — plus the "prototype, unaudited, testnet only" statement in the app and the README.
+Milestone 8 (ship): regenerate every README number with a repo script (`npm run report`, STANDARDS §1.3 — the Results table is currently typed by hand and this is where that stops), record the two-browser demo on Sepolia with the chat and pay-in-chat together, update `docs/DEMO.md` and the README's pitch with it, run `gitleaks detect` locally before the first push, and tag `v2.0.0`.

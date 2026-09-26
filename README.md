@@ -11,7 +11,7 @@ A privacy-first messenger and wallet prototype: Waku end-to-end encrypted messag
 [![CI](https://github.com/mit37/oblivion/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mit37/oblivion/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-> **Build status — milestone 6 of 8 is complete.** The crypto core, the encrypted vault, the Sepolia wallet, encrypted messaging and pay-in-chat are built and tested, with a working app: create a vault, write down the recovery phrase, confirm three words, unlock, auto-lock, change the password, reveal the phrase or delete the vault — receive testnet ETH at a QR, send it with the fee shown before signing, scan recent activity, watch an ERC-20 — exchange an identity string, add a contact, trade sealed direct messages over the real Waku network, and **ask for testnet ETH inside the thread, pay it in one click and post the transaction hash back into the same conversation**. Two browsers on different origins, each with its own vault and its own key, computed the same conversation id unaided and exchanged messages both ways. The security write-up and the release polish are milestones 7–8. Progress and evidence live in [`docs/PLAN.md`](docs/PLAN.md).
+> **Build status — milestone 7 of 8 is complete.** The crypto core, the encrypted vault, the Sepolia wallet, encrypted messaging and pay-in-chat are built and tested, and the threat model is written down ([`docs/SECURITY.md`](docs/SECURITY.md)). It is a working app: create a vault, write down the recovery phrase, confirm three words, unlock, auto-lock, change the password, reveal the phrase or delete the vault — receive testnet ETH at a QR, send it with the fee shown before signing, scan recent activity, watch an ERC-20 — exchange an identity string, add a contact, trade sealed direct messages over the real Waku network, and **ask for testnet ETH inside the thread, pay it in one click and post the transaction hash back into the same conversation**. Two browsers on different origins, each with its own vault and its own key, computed the same conversation id unaided and exchanged messages both ways. Milestone 8 is the recorded demo and the `v2.0.0` tag. Progress and evidence live in [`docs/PLAN.md`](docs/PLAN.md).
 
 ## The thirty-second version
 
@@ -34,8 +34,7 @@ Pay-in-chat is the same envelope doing a second job: one side seals a Sepolia pa
 | Encrypted vault: create / unlock / lock / re-wrap, IndexedDB, auto-lock, backup + confirm flow      | ✅ milestone 3 |
 | Sepolia wallet: balance, receive (QR), send, history, ERC-20 view, mainnet refusal                  | ✅ milestone 4 |
 | Waku 1:1 end-to-end encrypted messaging: identity exchange, contacts, sealed chat, history          | ✅ milestone 5 |
-| Pay-in-chat payment requests: sealed request in the thread, one-click Sepolia pay, hash posted back | ✅ milestone 6 |
-| Security write-up (`docs/SECURITY.md` threat model)                                                 | ⏳ milestone 7 |
+| Pay-in-chat payment requests: sealed request in the thread, one-click Sepolia pay, hash posted back | ✅ milestone 6 |     | Security write-up: `docs/SECURITY.md` threat model, known gaps, dependency findings | ✅ milestone 7 |
 | Demo recording + `v2.0.0` tag                                                                       | ⏳ milestone 8 |
 
 ## Results
@@ -138,6 +137,7 @@ The Messages panel starts in **local only** mode, where a chat never leaves the 
 - Chat is also covered without the network: `src/messaging/waku.test.ts` drives the adapter with a fake SDK, and `src/ui/messaging-context.test.tsx` runs two identities against an in-memory network to exercise the contact, thread, rejection and vault-storage paths through the real UI.
 - Pay-in-chat is tested at the same three levels: `src/messaging/payments.test.ts` (23 tests) pins the codec — a request must name its chain, a paid receipt must carry a 32-byte hash, a declined one must not; `src/messaging/service.test.ts` proves the amount and the payee address never appear on the wire in the clear and that a mainnet request publishes nothing; `src/ui/messaging-context.test.tsx` drives the whole loop through the UI — ask, pay with one click against the in-memory chain, hash back in the thread, decline without a chain call, and a shortfall that disables the button.
 - CI runs lint, format check, typecheck, unit tests, build, Playwright and gitleaks on every push and pull request, and reports `npm audit` without failing the build.
+- The threat model is a document, not a test, but it is written from the code: every claim in [`docs/SECURITY.md`](docs/SECURITY.md) names the module and the test file that backs it, and the things that are _not_ defended are listed there as carefully as the things that are.
 
 ## What this does not do
 
@@ -157,7 +157,8 @@ The Messages panel starts in **local only** mode, where a chat never leaves the 
 - **One recipient at a time, no batching, no gas-speed choice.** Fees are whatever the endpoint suggests, doubled for headroom; there is no "slow/normal/fast" selector and no transaction replacement.
 - **Desktop browser only.** No mobile build, no hardware wallet, no WalletConnect.
 - **No recovery.** Lose the password and the phrase and the data is gone; there is no server, no reset link and no support desk.
-- **No protection against a compromised device.** Malware, a keylogger or someone with your unlocked session can read what you can read. See `docs/SECURITY.md` (milestone 7) for the full threat model.
+- **No protection against a compromised device.** Malware, a keylogger, a malicious extension or someone with your unlocked session can read what you can read: the decrypted document is a JavaScript value that cannot be wiped like the vault key is. The full list — including what a relay can measure, why there is no forward secrecy, and what a payment request does _not_ prove — is in [`docs/SECURITY.md`](docs/SECURITY.md).
+- **No Content-Security-Policy.** The app never uses `dangerouslySetInnerHTML`, `eval`, `localStorage` or cookies, but GitHub Pages cannot set response headers and no `<meta http-equiv>` policy is shipped yet, so a same-origin script injection would run with the app's privileges. Recorded as a known gap in the threat model rather than left implicit.
 - **Two third parties still learn something, and neither is hidden.** A Waku relay sees your chat traffic (above), and the RPC provider sees your wallet address (above). Everything that was designed to withstand an observer — the envelope, the ciphertext, the vault record — is worthless to them; the metadata is simply not defended.
 - **No telemetry, no analytics, no logging of key material.** `no-console` is an ESLint error in `src/`.
 - **Never planned:** mainnet, group chats, swaps/DEX, NFTs, custodial anything, or a mobile-native app (PRD non-goals).
@@ -190,4 +191,4 @@ The Messages panel starts in **local only** mode, where a chat never leaves the 
 
 MIT — see [LICENSE](LICENSE). Built with AI coding agents (Freebuff/GLM) under my direction; design, specs, review and evaluation are mine.
 
-Repo plan and rules: [`PRD.md`](PRD.md), [`STANDARDS.md`](STANDARDS.md), [`docs/PLAN.md`](docs/PLAN.md).
+Repo plan and rules: [`PRD.md`](PRD.md), [`STANDARDS.md`](STANDARDS.md), [`docs/PLAN.md`](docs/PLAN.md). Security: [`docs/SECURITY.md`](docs/SECURITY.md) (threat model and known gaps).
