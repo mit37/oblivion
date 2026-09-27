@@ -62,11 +62,34 @@ jobs:
   gitleaks:
     name: secret scan
     runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: 8.24.3
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # The gitleaks action scans the range it derives from the push event:
+      # <parent of the first pushed commit>^..<head>. On a repository's first
+      # push that first commit is the root, which has no parent, so git exits
+      # with "ambiguous argument" and the job fails without scanning anything.
+      # The pinned binary scanning the whole history cannot go wrong that way,
+      # and it takes the Node 20 runtime question out of the job as well.
+      - name: Install gitleaks ${{ env.GITLEAKS_VERSION }}
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Scan the whole history for secrets
+        run: >
+          gitleaks git --redact --exit-code 1 --log-opts="--all --no-merges"
+          --report-format=sarif --report-path=gitleaks-results.sarif .
+
+      - name: Upload the gitleaks report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-results
+          path: gitleaks-results.sarif
+          retention-days: 7
