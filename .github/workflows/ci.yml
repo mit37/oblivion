@@ -83,7 +83,7 @@ jobs:
 
       - name: Scan the whole history for secrets
         run: >
-          gitleaks git --redact --exit-code 1 --log-opts="--all --no-merges"
+          gitleaks git --redact -v --exit-code 1 --log-opts="--all --no-merges"
           --report-format=sarif --report-path=gitleaks-results.sarif .
 
       - name: Upload the gitleaks report on failure

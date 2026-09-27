@@ -1,0 +1,24 @@
+# Allowlist for the secret scan: the four strings below are published or
+# reproducible test values that the generic-api-key rule flags by shape. They
+# are listed one by one instead of allowlisting whole files, so a real
+# credential pasted into one of those files still fails the scan.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known test vectors and fixture addresses, not credentials"
+regexes = [
+  # src/wallet/format.test.ts -- a made-up ERC-20 address used to check that
+  # address shortening keeps the head and tail.
+  '''0x0dE8B2F1a0e2c1d3E4f5A6b7C8d9E0f1A2b3C4d5''',
+  # src/crypto/vectors.ts -- the publicly documented derivation of the BIP-39
+  # "abandon ... about" test mnemonic at m/44'/60'/0'/0/0.
+  '''0x1ab42cc412b618bdea3a599e3c9bae199ebf030895b039e9db1e30dafb12b727''',
+  # src/crypto/vectors.ts -- Argon2id outputs captured in this repo from the
+  # pinned libsodium build, test and interactive profiles. Reproducible by
+  # running the same code, and useless without the passphrase they were derived
+  # from, which is not in the repo.
+  '''9aeef75313e585f492c33c5e12d82e9ad253b7dd78632d537e899cd4eddd789c''',
+  '''0d1a3c6523c8f06e4e0af9c515aa5b5448cfebd6838f2d52c3d8b6ef8ddc3c2e''',
+]
