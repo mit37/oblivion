@@ -263,11 +263,11 @@ export function Dashboard() {
       <section className="card" aria-labelledby="build-title">
         <h2 id="build-title">Build status</h2>
         <p className="muted small">
-          The vault, the crypto core, CI, the Sepolia wallet, encrypted messaging and pay-in-chat
-          exist, so two browsers can already hold a sealed conversation over the real Waku network
-          and settle a Sepolia payment inside it, and the threat model is written down in
-          docs/SECURITY.md. What is left is the release polish (recorded demo, regenerated README
-          numbers, the v2.0.0 tag) — and the wallet only ever touches testnet.
+          All eight milestones are done: the vault, the crypto core, CI, the Sepolia wallet,
+          encrypted messaging and pay-in-chat are built and tested, two browsers hold a sealed
+          conversation over the real Waku network and settle a Sepolia payment inside it, the threat
+          model is written down in docs/SECURITY.md, and the two-browser demo is recorded
+          (docs/demo) for the v2.0.0 tag — and the wallet only ever touches testnet.
         </p>
 
         <ol className="milestones">

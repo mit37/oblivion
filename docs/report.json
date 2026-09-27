@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-26T21:58:07.986Z",
+  "generatedAt": "2026-09-27T00:12:21.693Z",
   "node": "24.20.0",
   "platform": "win32",
   "unit": {
@@ -7,7 +7,7 @@
     "skipped": 2,
     "files": 31,
     "skippedFiles": 0,
-    "wallSeconds": 37.5,
+    "wallSeconds": 32.9,
     "modules": [
       {
         "label": "- crypto module",
@@ -52,7 +52,7 @@
     "chunks": [
       {
         "label": "Production bundle, app chunk",
-        "file": "index-BM1xvFEN.js",
+        "file": "index-DZH8jDsK.js",
         "rawKb": "702.05",
         "gzipKb": "222.21"
       },
@@ -64,19 +64,19 @@
       },
       {
         "label": "Production bundle, lazily loaded libsodium chunk",
-        "file": "libsodium-wrappers-BEvnB-no.js",
+        "file": "libsodium-wrappers-Dzb0qQqj.js",
         "rawKb": "533.91",
         "gzipKb": "189.07"
       },
       {
         "label": "Production bundle, lazily loaded Waku SDK chunk",
-        "file": "dist-B_pRGSE1.js",
+        "file": "dist-D9m23Nb0.js",
         "rawKb": "849.47",
         "gzipKb": "258.19"
       },
       {
         "label": "Production bundle, Waku adapter chunk",
-        "file": "waku-9N6w6K-w.js",
+        "file": "waku-D332F0_-.js",
         "rawKb": "2.58",
         "gzipKb": "1.06"
       }
@@ -87,7 +87,7 @@
     "expected": 3,
     "unexpected": 0,
     "skipped": 0,
-    "seconds": 5.3
+    "seconds": 4
   },
   "live": {
     "status": "not-measured",
@@ -95,7 +95,7 @@
     "frameSeconds": null,
     "directMessageSeconds": null
   },
-  "argon2Seconds": 0.23,
+  "argon2Seconds": 0.19,
   "audit": {
     "status": "measured",
     "total": 6,

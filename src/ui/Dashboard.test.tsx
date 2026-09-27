@@ -180,7 +180,7 @@ describe('deleting the vault', () => {
 })
 
 describe('build status card', () => {
-  it('marks the finished milestones done and the rest planned', async () => {
+  it('marks every milestone done for a build that has shipped', async () => {
     await renderUnlocked()
 
     const items = screen.getAllByRole('listitem')
@@ -197,6 +197,6 @@ describe('build status card', () => {
     expect(rowFor('Security write-up (docs/SECURITY.md threat model)')).toHaveClass(
       'milestone--done',
     )
-    expect(rowFor('README, demo recording, tag v2.0.0')).toHaveClass('milestone--planned')
+    expect(rowFor('README, demo recording, tag v2.0.0')).toHaveClass('milestone--done')
   })
 })

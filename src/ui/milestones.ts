@@ -18,7 +18,7 @@ export const MILESTONES: readonly MilestoneInfo[] = [
   { id: 8, title: 'README, demo recording, tag v2.0.0' },
 ]
 
-export const MILESTONES_DONE = 7
+export const MILESTONES_DONE = 8
 
 export type MilestoneStatus = 'done' | 'planned'
 

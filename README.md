@@ -11,9 +11,13 @@ A privacy-first messenger and wallet prototype: Waku end-to-end encrypted messag
 [![CI](https://github.com/mit37/oblivion/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/mit37/oblivion/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-> _Demo video: not recorded yet — milestone 8 records two browsers chatting and paying on Sepolia (shot list: [`docs/DEMO.md`](docs/DEMO.md))._
+[![Alice's browser in the demo: a sealed chat with Bob, and the caption bar explaining the shot](docs/demo/poster.png)](docs/demo/alice.webm)
 
-> **Build status — milestone 7 of 8 is complete.** The crypto core, the encrypted vault, the Sepolia wallet, encrypted messaging and pay-in-chat are built and tested, and the threat model is written down ([`docs/SECURITY.md`](docs/SECURITY.md)). It is a working app: create a vault, write down the recovery phrase, confirm three words, unlock, auto-lock, change the password, reveal the phrase or delete the vault — receive testnet ETH at a QR, send it with the fee shown before signing, scan recent activity, watch an ERC-20 — exchange an identity string, add a contact, trade sealed direct messages over the real Waku network, and **ask for testnet ETH inside the thread, pay it in one click and post the transaction hash back into the same conversation**. Two browsers on different origins, each with its own vault and its own key, computed the same conversation id unaided and exchanged messages both ways. Milestone 8 is the recorded demo and the `v2.0.0` tag. Progress and evidence live in [`docs/PLAN.md`](docs/PLAN.md).
+> **Demo — two browsers, two vaults, one real network.** Recorded on the built app by [`scripts/demo.mjs`](scripts/demo.mjs), two origins on `127.0.0.1:4183` and `:4184`: [Alice's screen](docs/demo/alice.webm) · [Bob's screen](docs/demo/bob.webm) · the run's own record in [`docs/demo/facts.json`](docs/demo/facts.json) · what each file is in [`docs/demo/README.md`](docs/demo/README.md) (shot list: [`docs/DEMO.md`](docs/DEMO.md)).
+>
+> **The payer's wallet is empty, and the recording says so.** No funded key exists in the repo or in the build environment, so with the real Sepolia endpoint the request is shown down to the fee line, `Pay` stays disabled for lack of funds, and the demo then records a **decline** — the path that never touches the chain. The paying click is recorded separately against a **stubbed** Sepolia endpoint ([`stub/alice.webm`](docs/demo/stub/alice.webm), [`stub/bob.webm`](docs/demo/stub/bob.webm)): real signing, real sealing, real Waku, a canned chain, and a badge in every frame that says `chain: STUB (Sepolia faked)`.
+
+> **Build status — milestone 8 of 8 is complete; this README describes `v2.0.0`.** The crypto core, the encrypted vault, the Sepolia wallet, encrypted messaging and pay-in-chat are built and tested, and the threat model is written down ([`docs/SECURITY.md`](docs/SECURITY.md)). It is a working app: create a vault, write down the recovery phrase, confirm three words, unlock, auto-lock, change the password, reveal the phrase or delete the vault — receive testnet ETH at a QR, send it with the fee shown before signing, scan recent activity, watch an ERC-20 — exchange an identity string, add a contact, trade sealed direct messages over the real Waku network, and **ask for testnet ETH inside the thread, pay it in one click and post the transaction hash back into the same conversation**. Two browsers on different origins, each with its own vault and its own key, computed the same conversation id unaided and exchanged messages both ways — and that run is the recording above. Progress and evidence live in [`docs/PLAN.md`](docs/PLAN.md); what this build cannot claim is written down there and in [`docs/SECURITY.md`](docs/SECURITY.md) rather than left out.
 
 ## The thirty-second version
 
@@ -36,25 +40,26 @@ Pay-in-chat is the same envelope doing a second job: one side seals a Sepolia pa
 | Encrypted vault: create / unlock / lock / re-wrap, IndexedDB, auto-lock, backup + confirm flow      | ✅ milestone 3 |
 | Sepolia wallet: balance, receive (QR), send, history, ERC-20 view, mainnet refusal                  | ✅ milestone 4 |
 | Waku 1:1 end-to-end encrypted messaging: identity exchange, contacts, sealed chat, history          | ✅ milestone 5 |
-| Pay-in-chat payment requests: sealed request in the thread, one-click Sepolia pay, hash posted back | ✅ milestone 6 |     | Security write-up: `docs/SECURITY.md` threat model, known gaps, dependency findings | ✅ milestone 7 |
-| Demo recording + `v2.0.0` tag                                                                       | ⏳ milestone 8 |
+| Pay-in-chat payment requests: sealed request in the thread, one-click Sepolia pay, hash posted back | ✅ milestone 6 |
+| Security write-up: `docs/SECURITY.md` threat model, known gaps, dependency findings                 | ✅ milestone 7 |
+| README with generated numbers, two-browser demo recording, `v2.0.0` tag                             | ✅ milestone 8 |
 
 ## Results
 
 <!-- report:start -->
 
-Every number below was produced by this repo on 2026-09-26 with `npm run report` (Node 24.20.0, Windows). A measurement this machine cannot take is reported as **not measured** with the reason, never guessed. The raw output the script parsed is committed as [`docs/report.json`](docs/report.json), and `npm run report:check` fails if this block stops matching it.
+Every number below was produced by this repo on 2026-09-27 with `npm run report` (Node 24.20.0, Windows). A measurement this machine cannot take is reported as **not measured** with the reason, never guessed. The raw output the script parsed is committed as [`docs/report.json`](docs/report.json), and `npm run report:check` fails if this block stops matching it.
 
 | Measurement                                              | Value                                                                    | Command                                            |
 | -------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------- |
-| Unit tests (Vitest)                                      | 597 passing, 31 files (2 more skipped), 37.5 s wall time                 | `npm test`                                         |
+| Unit tests (Vitest)                                      | 597 passing, 31 files (2 more skipped), 32.9 s wall time                 | `npm test`                                         |
 | - crypto module                                          | 175 tests                                                                | `npx vitest run src/crypto`                        |
 | - vault module                                           | 140 tests                                                                | `npx vitest run src/vault`                         |
 | - wallet engine                                          | 88 tests                                                                 | `npx vitest run src/wallet`                        |
 | - messaging module                                       | 98 tests (2 skipped unless opted in)                                     | `npx vitest run src/messaging`                     |
 | - security policy                                        | 8 tests                                                                  | `npx vitest run src/security`                      |
 | - app + UI (wallet, QR, chat and pay-in-chat panels)     | 88 tests                                                                 | `npx vitest run src/App.test.tsx src/ui`           |
-| End-to-end (Playwright, Chromium, built app)             | 3 passing (5.3 s)                                                        | `npm run test:e2e`                                 |
+| End-to-end (Playwright, Chromium, built app)             | 3 passing (4 s)                                                          | `npm run test:e2e`                                 |
 | Live Waku: a light node carries one transport frame      | not measured here — opt-in: needs outbound network access                | `WAKU_LIVE=1 npm run report`                       |
 | Live Waku: two light nodes trade a sealed direct message | not measured here — opt-in: needs outbound network access                | `(same command)`                                   |
 | Production bundle, app chunk                             | 702.05 kB (222.21 kB gzip)                                               | `npm run build`                                    |
@@ -62,7 +67,7 @@ Every number below was produced by this repo on 2026-09-26 with `npm run report`
 | Production bundle, lazily loaded libsodium chunk         | 533.91 kB (189.07 kB gzip)                                               | `npm run build`                                    |
 | Production bundle, lazily loaded Waku SDK chunk          | 849.47 kB (258.19 kB gzip)                                               | `npm run build`                                    |
 | Production bundle, Waku adapter chunk                    | 2.58 kB (1.06 kB gzip)                                                   | `npm run build`                                    |
-| Argon2id at the default `interactive` profile            | 0.23 s per derivation                                                    | `npm run report`                                   |
+| Argon2id at the default `interactive` profile            | 0.19 s per derivation                                                    | `npm run report`                                   |
 | Dependency advisories (`npm audit`)                      | 6 (2 moderate, 4 high) — reported in CI, non-blocking                    | `npm audit`                                        |
 | Pay-in-chat loop in the UI (ask → one click → hash back) | 1.2 s per run (in-memory network + fake chain)                           | `npx vitest run src/ui/messaging-context.test.tsx` |
 | Fee shown for a 0.001 ETH send at a 20 gwei gas price    | 0.00084 ETH (worst case, 21 000 gas × a 40 gwei cap)                     | `npx playwright test e2e/wallet.spec.ts`           |
@@ -126,8 +131,11 @@ src/vault/
  └─ auto-lock.ts    inactivity lock with an injectable clock
 
 scripts/
- └─ report.mjs      measures the suite, the bundle, the browser tests and the KDF;
-                    writes docs/report.json and the README Results table
+ ├─ report.mjs      measures the suite, the bundle, the browser tests and the KDF;
+ │                  writes docs/report.json and the README Results table
+ └─ demo.mjs        records the two-browser demo in docs/demo: two origins, a caption
+                    bar and a chain badge on every frame, one Playwright video per page,
+                    the IndexedDB record read back for the at-rest shot, and facts.json
 ```
 
 Data at rest is exactly one IndexedDB record: `{ id, version, kdf: { algorithm, opsLimit, memLimitBytes, saltHex }, envelope, createdAt, updatedAt }`. `envelope` is `oc1.<nonce>.<aad|->.<ciphertext>` in unpadded URL-safe base64. `src/vault/no-plaintext.test.ts` scans the real database and fails if the password, the mnemonic, a derived key or an address ever appears outside the sealed envelope — and, since milestone 5, if a contact label, an identity string, a conversation id, a content topic or a message body does either.
@@ -160,7 +168,7 @@ npm run dev        # app shell on http://localhost:5173
 npm run verify     # lint, format check, typecheck, unit tests, build, E2E
 ```
 
-`npm run report` regenerates the README's Results table from measurements taken on your machine (add `WAKU_LIVE=1` to include the live Waku rows, or stay offline and the table says so). No API keys and no configuration are needed. The first screen asks you to create a vault; the password you choose is the only way back in, and the recovery phrase is shown once (and can be revealed again later from the dashboard).
+`npm run report` regenerates the README's Results table from measurements taken on your machine (add `WAKU_LIVE=1` to include the live Waku rows, or stay offline and the table says so). `npm run demo` builds the app and records the two-browser demo into `docs/demo` — two throwaway vaults, the real Waku network, and the live Sepolia endpoint unless you pass `--chain=stub`; `npm run demo:prepare` prints the payer's address if you want to fund it and record a real payment. No API keys and no configuration are needed to run any of it. The first screen asks you to create a vault; the password you choose is the only way back in, and the recovery phrase is shown once (and can be revealed again later from the dashboard).
 
 The Messages panel starts in **local only** mode, where a chat never leaves the tab — useful for trying the UI without a network. "Connect to Waku" swaps in the real light node; to talk between two browsers, copy each identity string (or scan its QR) into the other one's Contacts form, then send. Nothing needs to be configured: `VITE_SEPOLIA_RPC_URL` and `VITE_WAKU_BOOTSTRAP_PEERS` are optional overrides, not requirements.
 
@@ -174,6 +182,7 @@ The Messages panel starts in **local only** mode, where a chat never leaves the 
 - Pay-in-chat is tested at the same three levels: `src/messaging/payments.test.ts` (23 tests) pins the codec — a request must name its chain, a paid receipt must carry a 32-byte hash, a declined one must not; `src/messaging/service.test.ts` proves the amount and the payee address never appear on the wire in the clear and that a mainnet request publishes nothing; `src/ui/messaging-context.test.tsx` drives the whole loop through the UI — ask, pay with one click against the in-memory chain, hash back in the thread, decline without a chain call, and a shortfall that disables the button.
 - CI runs lint, format check, typecheck, unit tests, build, Playwright and gitleaks on every push and pull request, and reports `npm audit` without failing the build.
 - The threat model is a document, not a test, but it is written from the code: every claim in [`docs/SECURITY.md`](docs/SECURITY.md) names the module and the test file that backs it, and the things that are _not_ defended are listed there as carefully as the things that are. The one part of it that _is_ a test is the Content-Security-Policy: `src/security/csp.test.ts` pins each directive and the deliberately absent ones, and `e2e/smoke.spec.ts` asserts the policy is in the HTML the build produced.
+- The two-browser demo is a script, not a manual run: `scripts/demo.mjs` creates two vaults in a throwaway profile (so the recovery phrase is never on camera), unlocks both, connects both to the real Waku network, exercises the contact refusals, sends sealed messages each way, reads the vault record straight out of IndexedDB and searches it for plaintext on screen, walks pay-in-chat down to the fee line and the decline, and locks and unlocks both vaults. Every frame carries a badge naming the origin and the chain, and the run's own numbers go to `docs/demo/facts.json`. It is not part of `npm run verify`: it needs the public network, and CI is hermetic.
 - Every number in the Results table is generated: `npm run report` measures the suite (Vitest's JSON reporter), the bundle (Vite's own build output), the browser tests, one Argon2id derivation and `npm audit`, writes `docs/report.json`, and rewrites the README block from it. `npm run report:check` runs in CI and fails if the table and the record drift apart, and a measurement this machine cannot take is written as **not measured** with its reason rather than guessed.
 
 ## What this does not do
