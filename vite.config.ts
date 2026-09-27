@@ -2,7 +2,7 @@ import react from '@vitejs/plugin-react'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
 
-import { CONTENT_SECURITY_POLICY_META } from './src/security/csp'
+import { CONTENT_SECURITY_POLICY_META } from './src/security/csp.ts'
 
 /**
  * Adds the Content-Security-Policy to the built HTML only. The dev server needs
