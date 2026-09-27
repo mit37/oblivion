@@ -131,7 +131,7 @@ No cryptography is hand-rolled: every primitive above comes from those libraries
 
 **Negative result, reported rather than buried:** `@waku/sdk@0.0.36` is the one dependency with known advisories — 6 vulnerabilities (2 moderate, 4 high) through `@waku/discovery`, `libp2p` and `uuid < 11.1.1`. `npm audit` reports them in CI, where the step is deliberately non-blocking; `npm audit fix --force` "resolves" them only by downgrading to `@waku/sdk@0.0.16`, a breaking downgrade of the transport the chat runs on. That trade is the maintainer's to make, so the finding stays visible in the README Results table instead of being silenced.
 
-Other supply-chain properties: no secrets in the repository and `.env.example` documents the two optional variables; `gitleaks` runs in CI on every push and pull request (the binary is not installed on the development machine, so a local scan is not part of the local verification log); GitHub Actions are referenced by mutable major tags (`actions/checkout@v4`, `gitleaks/gitleaks-action@v2`) rather than pinned commit SHAs, which is a known supply-chain weakness; there is no service worker, no runtime CDN fetch and no telemetry, analytics or logging of key material (`no-console` is an ESLint **error** in `src/`).
+Other supply-chain properties: no secrets in the repository and `.env.example` documents the two optional variables; `gitleaks` runs in CI on every push and pull request as the `secret scan` job, which installs the pinned 8.24.3 release and scans the whole history (the `gitleaks-action@v2` this job used first could not scan a repository's first push at all — it derives a range that includes the root commit's non-existent parent — and it still targeted the Node 20 runtime GitHub is retiring); `.gitleaks.toml` allowlists four named test-vector values by value rather than allowlisting the files they live in, so a real credential pasted into `src/crypto/vectors.ts` or `src/wallet/format.test.ts` still fails the scan; the same binary was run by hand on the development machine (15 commits, no leaks, with a control secret still detected) but no npm script or hook automates that, so it is not part of `npm run verify`; GitHub Actions are otherwise referenced by mutable major tags (`actions/checkout@v4`, `actions/upload-artifact@v4`) rather than pinned commit SHAs, which is a known supply-chain weakness, and both actions make CI print GitHub's Node 20 deprecation warning on every run; there is no service worker, no runtime CDN fetch and no telemetry, analytics or logging of key material (`no-console` is an ESLint **error** in `src/`).
 
 ## 9. Known gaps, in one list
 
@@ -151,7 +151,7 @@ Other supply-chain properties: no secrets in the repository and `.env.example` d
 14. The RPC provider sees the wallet address and IP; no own-node guidance in-app, no private broadcast.
 15. Bounded history (last 12 blocks) with no indexer.
 16. Dependency risk above (the `@waku/sdk` advisories), and actions pinned by mutable tags.
-17. `gitleaks` runs in CI only; a local pre-push scan is not automated.
+17. `gitleaks` runs in CI on every push; the same pinned binary can be run by hand (it was, once, before the first push) but no npm script or pre-push hook automates it, so a local scan is not part of `npm run verify`.
 18. Unaudited WebAssembly and JavaScript cryptography in a browser tab: the platform's own attack surface (browser, OS, extensions) is out of scope and unaddressed.
 
 ## 10. How these claims are checked
