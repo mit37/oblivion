@@ -46,4 +46,12 @@ export default [
       globals: { ...globals.node },
     },
   },
+  {
+    // The demo recorder drives a browser: its page-evaluated functions run in
+    // one, so they see `document`, `window` and `indexedDB` rather than Node.
+    files: ['scripts/demo.mjs'],
+    languageOptions: {
+      globals: { ...globals.browser },
+    },
+  },
 ]

@@ -1,0 +1,72 @@
+{
+  "recordedAt": "2026-09-27T00:04:34.997Z",
+  "chain": "stub",
+  "origins": {
+    "alice": "http://127.0.0.1:4183/",
+    "bob": "http://127.0.0.1:4184/"
+  },
+  "identities": {
+    "alice": {
+      "address": "0x7296ce32bC3fCbD9BfebdF1a14Dc43034834dE67",
+      "identity": "oblivion1AyLYJ7fFPKIAT7tJzzhuIFYSL8b4NBtnGWo8F_EpMNpn",
+      "fingerprint": "3ef0-15a7"
+    },
+    "bob": {
+      "address": "0x2F51464199F318031A20261816CD620d3E00173E",
+      "identity": "oblivion1A0tIPPgHDzPXroolba7HQi_iV6YggMDvfQBoAVoOMg2c",
+      "fingerprint": "fcf5-db82"
+    }
+  },
+  "topic": "/oblivion/1/b5f46e8a4ae684fd872f1dddb44c5f29/proto",
+  "messages": {
+    "alice": "Bob — this sentence only exists in our two vaults and the sealed frame.",
+    "bob": "Received, opened locally, and stored encrypted. Answering from the same thread."
+  },
+  "refusals": {
+    "walletAddress": "not a contact identity: identity must start with \"oblivion1\"",
+    "selfContact": "that is your own identity"
+  },
+  "recordAtRest": {
+    "version": 1,
+    "keys": ["id", "version", "kdf", "envelope", "createdAt", "updatedAt"],
+    "envelopeLength": 1632,
+    "plaintextSearch": [
+      {
+        "what": "the demo password",
+        "present": false
+      },
+      {
+        "what": "the wallet address",
+        "present": false
+      },
+      {
+        "what": "the chat identity",
+        "present": false
+      },
+      {
+        "what": "the message just sent",
+        "present": false
+      }
+    ]
+  },
+  "payment": {
+    "feeLine": "Worst-case fee 0.00084 ETH (21000 gas at up to 40 gwei), so 0.00184 ETH has to be available.",
+    "payDisabled": false,
+    "shortfall": false,
+    "cardError": null,
+    "hash": "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+    "hashInThreadMs": 1356
+  },
+  "declinedRequest": {
+    "attempts": 1,
+    "bobCard": "Alice asks for 0.0005 ETH.0x7296ce32bC3fCbD9BfebdF1a14Dc43034834dE67“decline path”Waiting for you to pay.Worst-case fee 0.00084 ETH (21000 gas at up to 40 gwei), so 0.00134 ETH has to be available.Paying…Decline"
+  },
+  "stubChain": {
+    "balanceEth": "1",
+    "transactionsBroadcast": 1
+  },
+  "video": {
+    "alice": "docs/demo/stub/alice.webm",
+    "bob": "docs/demo/stub/bob.webm"
+  }
+}

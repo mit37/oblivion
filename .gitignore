@@ -30,9 +30,10 @@ secrets/
 *.task
 data/
 
-# Recordings
+# Recordings — except the two-browser demo the README points at
 recordings/
 *.webm
+!docs/demo/**/*.webm
 
 # Logs
 *.log

@@ -1,0 +1,67 @@
+{
+  "recordedAt": "2026-09-27T00:00:33.077Z",
+  "chain": "live",
+  "origins": {
+    "alice": "http://127.0.0.1:4183/",
+    "bob": "http://127.0.0.1:4184/"
+  },
+  "identities": {
+    "alice": {
+      "address": "0xca7D79A2Ce605b4cb705cda421E767D349FD44B2",
+      "identity": "oblivion1Agm490yEFYOjRc1E_A07CSXTBW-dROPj5gMMhq5muBvI",
+      "fingerprint": "69c4-545e"
+    },
+    "bob": {
+      "address": "0x7EA5440E00eF463600154a132a18842701214c34",
+      "identity": "oblivion1ApalgR76DeSOXX8FiP1AVbXKh1SO9RSV4KB4sPhAfkk4",
+      "fingerprint": "f0a1-6e59"
+    }
+  },
+  "topic": "/oblivion/1/f00a8a9f92e37e3ef307c3e4f1847c7d/proto",
+  "messages": {
+    "alice": "Bob — this sentence only exists in our two vaults and the sealed frame.",
+    "bob": "Received, opened locally, and stored encrypted. Answering from the same thread."
+  },
+  "refusals": {
+    "walletAddress": "not a contact identity: identity must start with \"oblivion1\"",
+    "selfContact": "that is your own identity"
+  },
+  "recordAtRest": {
+    "version": 1,
+    "keys": ["id", "version", "kdf", "envelope", "createdAt", "updatedAt"],
+    "envelopeLength": 1617,
+    "plaintextSearch": [
+      {
+        "what": "the demo password",
+        "present": false
+      },
+      {
+        "what": "the wallet address",
+        "present": false
+      },
+      {
+        "what": "the chat identity",
+        "present": false
+      },
+      {
+        "what": "the message just sent",
+        "present": false
+      }
+    ]
+  },
+  "payment": {
+    "feeLine": "Checking what the fee would be…",
+    "payDisabled": true,
+    "shortfall": false,
+    "cardError": "Transaction creation failed.\n\nURL: https://ethereum-sepolia-rpc.publicnode.com\nRequest body: {\"method\":\"eth_estimateGas\",\"params\":[{\"from\":\"0x7EA5440E00eF463600154a132a18842701214c34\",\"to\":\"0xca7D79A2Ce605b4cb705cda421E767D349FD44B2\",\"value\":\"0x38d7ea4c68000\"}]}\n \nEstimate Gas Arguments:\n  from:   0x7EA5440E00eF463600154a132a18842701214c34\n  to:     0xca7D79A2Ce605b4cb705cda421E767D349FD44B2\n  value:  0.001 ETH\n\nDetails: EVM error: OutOfFunds\nVersion: viem@2.56.9"
+  },
+  "declinedRequest": {
+    "attempts": 1,
+    "bobCard": "Alice asks for 0.0005 ETH.0xca7D79A2Ce605b4cb705cda421E767D349FD44B2“decline path”Declined."
+  },
+  "stubChain": null,
+  "video": {
+    "alice": "docs/demo/alice.webm",
+    "bob": "docs/demo/bob.webm"
+  }
+}

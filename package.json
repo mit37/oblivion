@@ -25,6 +25,10 @@
     "test:e2e": "npm run build && playwright test",
     "report": "node scripts/report.mjs",
     "report:check": "node scripts/report.mjs --check",
+    "demo": "npm run build && node scripts/demo.mjs",
+    "demo:stub": "npm run build && node scripts/demo.mjs --chain=stub --out=docs/demo/stub",
+    "demo:prepare": "node scripts/demo.mjs --prepare-only",
+    "demo:keep": "npm run build && node scripts/demo.mjs --keep-profile",
     "verify": "npm run lint && npm run format:check && npm run typecheck && npm test && npm run test:e2e"
   },
   "dependencies": {
