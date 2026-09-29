@@ -1,5 +1,5 @@
 {
-  "recordedAt": "2026-09-27T00:00:33.077Z",
+  "recordedAt": "2026-09-29T04:55:15.506Z",
   "chain": "live",
   "origins": {
     "alice": "http://127.0.0.1:4183/",
@@ -7,17 +7,17 @@
   },
   "identities": {
     "alice": {
-      "address": "0xca7D79A2Ce605b4cb705cda421E767D349FD44B2",
-      "identity": "oblivion1Agm490yEFYOjRc1E_A07CSXTBW-dROPj5gMMhq5muBvI",
-      "fingerprint": "69c4-545e"
+      "address": "0xf764317Dd4172ed8D031e8dBf548a98d6d1fB7E6",
+      "identity": "oblivion1AsmJIe1FQy0U8YosSVHtePUas9bLNFFkFstQ_WrjJlNY",
+      "fingerprint": "c477-23c5"
     },
     "bob": {
-      "address": "0x7EA5440E00eF463600154a132a18842701214c34",
-      "identity": "oblivion1ApalgR76DeSOXX8FiP1AVbXKh1SO9RSV4KB4sPhAfkk4",
-      "fingerprint": "f0a1-6e59"
+      "address": "0xc971AF59D6dC992a3751BA23100A44Cf722F5FBF",
+      "identity": "oblivion1AsAs-20JDFx7wJxWjzY8Tswi31iZccyzWhZAsq6Bn1Hq",
+      "fingerprint": "fc85-2408"
     }
   },
-  "topic": "/oblivion/1/f00a8a9f92e37e3ef307c3e4f1847c7d/proto",
+  "topic": "/oblivion/1/b1eca43b64d561d073834d6a7b793048/proto",
   "messages": {
     "alice": "Bob — this sentence only exists in our two vaults and the sealed frame.",
     "bob": "Received, opened locally, and stored encrypted. Answering from the same thread."
@@ -53,11 +53,11 @@
     "feeLine": "Checking what the fee would be…",
     "payDisabled": true,
     "shortfall": false,
-    "cardError": "Transaction creation failed.\n\nURL: https://ethereum-sepolia-rpc.publicnode.com\nRequest body: {\"method\":\"eth_estimateGas\",\"params\":[{\"from\":\"0x7EA5440E00eF463600154a132a18842701214c34\",\"to\":\"0xca7D79A2Ce605b4cb705cda421E767D349FD44B2\",\"value\":\"0x38d7ea4c68000\"}]}\n \nEstimate Gas Arguments:\n  from:   0x7EA5440E00eF463600154a132a18842701214c34\n  to:     0xca7D79A2Ce605b4cb705cda421E767D349FD44B2\n  value:  0.001 ETH\n\nDetails: EVM error: OutOfFunds\nVersion: viem@2.56.9"
+    "cardError": "This wallet does not hold enough Sepolia ETH to cover the amount plus the fee. Send testnet ETH to the address above and try again."
   },
   "declinedRequest": {
     "attempts": 1,
-    "bobCard": "Alice asks for 0.0005 ETH.0xca7D79A2Ce605b4cb705cda421E767D349FD44B2“decline path”Declined."
+    "bobCard": "Alice asks for 0.0005 ETH.0xf764317Dd4172ed8D031e8dBf548a98d6d1fB7E6“decline path”Waiting for you to pay.Checking what the fee would be…Paying…Decline"
   },
   "stubChain": null,
   "video": {

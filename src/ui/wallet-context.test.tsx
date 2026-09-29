@@ -208,4 +208,24 @@ describe('wallet provider', () => {
     expect(await screen.findByTestId('wallet-error')).toHaveTextContent(/not answering/i)
     expect(screen.getByRole('heading', { name: 'Balance' })).toBeVisible()
   })
+
+  it('condenses a raw provider dump instead of pasting it into the panel', async () => {
+    const chain = new FakeChain()
+    chain.getBalance = async () => {
+      // The shape viem really throws: a headline, the request it sent and the
+      // reason at the very bottom.
+      throw new Error(
+        'Transaction creation failed.\n\nURL: https://ethereum-sepolia-rpc.publicnode.com\n' +
+          'Request body: {"method":"eth_estimateGas"}\n\nDetails: EVM error: OutOfFunds\n' +
+          'Version: viem@2.56.9',
+      )
+    }
+
+    await renderWallet(chain)
+
+    const notice = await screen.findByTestId('wallet-error')
+    expect(notice).toHaveTextContent(/does not hold enough Sepolia ETH/i)
+    expect(notice.textContent).not.toContain('Request body')
+    expect(notice.textContent).not.toContain('eth_estimateGas')
+  })
 })

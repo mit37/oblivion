@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-09-27T00:12:21.693Z",
+  "generatedAt": "2026-09-29T04:59:37.591Z",
   "node": "24.20.0",
   "platform": "win32",
   "unit": {
-    "passed": 597,
+    "passed": 606,
     "skipped": 2,
-    "files": 31,
+    "files": 32,
     "skippedFiles": 0,
-    "wallSeconds": 32.9,
+    "wallSeconds": 30.9,
     "modules": [
       {
         "label": "- crypto module",
@@ -27,7 +27,7 @@
         "label": "- wallet engine",
         "prefix": "src/wallet/",
         "command": "npx vitest run src/wallet",
-        "tests": 88,
+        "tests": 96,
         "pending": 0
       },
       {
@@ -45,16 +45,16 @@
         "pending": 0
       }
     ],
-    "uiTests": 88,
-    "payInChatSeconds": 1.2
+    "uiTests": 89,
+    "payInChatSeconds": 0.8
   },
   "build": {
     "chunks": [
       {
         "label": "Production bundle, app chunk",
-        "file": "index-DZH8jDsK.js",
-        "rawKb": "702.05",
-        "gzipKb": "222.21"
+        "file": "index-wdmELHKE.js",
+        "rawKb": "703.27",
+        "gzipKb": "222.70"
       },
       {
         "label": "Production bundle, CSS",
@@ -64,19 +64,19 @@
       },
       {
         "label": "Production bundle, lazily loaded libsodium chunk",
-        "file": "libsodium-wrappers-Dzb0qQqj.js",
+        "file": "libsodium-wrappers-BqkOamzX.js",
         "rawKb": "533.91",
         "gzipKb": "189.07"
       },
       {
         "label": "Production bundle, lazily loaded Waku SDK chunk",
-        "file": "dist-D9m23Nb0.js",
+        "file": "dist-B1OOJQZ-.js",
         "rawKb": "849.47",
         "gzipKb": "258.19"
       },
       {
         "label": "Production bundle, Waku adapter chunk",
-        "file": "waku-D332F0_-.js",
+        "file": "waku-Dnke6uUR.js",
         "rawKb": "2.58",
         "gzipKb": "1.06"
       }
@@ -87,7 +87,7 @@
     "expected": 3,
     "unexpected": 0,
     "skipped": 0,
-    "seconds": 4
+    "seconds": 4.2
   },
   "live": {
     "status": "not-measured",
@@ -95,7 +95,7 @@
     "frameSeconds": null,
     "directMessageSeconds": null
   },
-  "argon2Seconds": 0.19,
+  "argon2Seconds": 0.35,
   "audit": {
     "status": "measured",
     "total": 6,

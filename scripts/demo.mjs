@@ -27,9 +27,10 @@
  * holds no funded key. `demo:prepare` prints the payer's address; fund it, then
  * `demo:keep` records the same vaults paying for real.
  */
-import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { spawn, spawnSync } from 'node:child_process'
+import { existsSync, readdirSync } from 'node:fs'
+import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -41,6 +42,16 @@ const CACHE = path.join(ROOT, 'node_modules', '.cache', 'oblivion-demo')
 const PROFILE = path.join(CACHE, 'profile')
 const VIDEO_TMP = path.join(CACHE, 'video')
 const VIEWPORT = { width: 1280, height: 800 }
+
+/**
+ * Playwright's raw recordings are around 3 MB a minute, at 25 fps, and the
+ * committed pair is re-encoded to VP8 at 15 fps so the repository stays light.
+ * That step used to be done by hand with the ffmpeg build Playwright itself
+ * ships — which is a hole in a script whose whole point is that the recording is
+ * reproducible. It happens here now, and a machine without the binary keeps the
+ * raw file and says so rather than silently committing 3 MB.
+ */
+const REENCODE_ARGS = ['-c:v', 'libvpx', '-b:v', '350k', '-r', '15', '-an']
 
 /** Throwaway, and it protects nothing: the demo vaults hold no funds. */
 const PASSWORD = 'demo-vault-passphrase-2026'
@@ -1033,7 +1044,7 @@ async function main() {
     if (options.prepareOnly) return
 
     const outcome = await record(options, origins, facts, outDir, holder)
-    const saved = await writeVideoFiles(outcome.videos, outDir)
+    const saved = await writeVideoFiles(outcome.videos, outDir, { reencode: true })
 
     const factsFile = {
       recordedAt: holder.run.startedAt,
@@ -1055,7 +1066,9 @@ async function main() {
       video: saved,
     }
 
-    await writeFile(path.join(outDir, 'facts.json'), `${JSON.stringify(factsFile, null, 2)}\n`)
+    const factsPath = path.join(outDir, 'facts.json')
+    await writeFile(factsPath, `${JSON.stringify(factsFile, null, 2)}\n`)
+    formatJson(factsPath)
 
     log(`[demo] recorded ${JSON.stringify(saved)}`)
     log(`[demo] facts written to ${path.join(options.out, 'facts.json')}`)
@@ -1064,7 +1077,9 @@ async function main() {
     log(`[demo] FAILED: ${failure}`)
     log('[demo] the recording up to the failure is kept for the write-up')
 
-    const saved = await writeVideoFiles(holder.videos ?? {}, path.join(CACHE, 'failed'), 'failed-')
+    const saved = await writeVideoFiles(holder.videos ?? {}, path.join(CACHE, 'failed'), {
+      prefix: 'failed-',
+    })
     await writeFile(
       path.join(CACHE, 'failure.json'),
       `${JSON.stringify({ at: new Date().toISOString(), chain: options.chain, message: failure, saved }, null, 2)}\n`,
@@ -1076,7 +1091,7 @@ async function main() {
   process.exitCode = failure ? 1 : 0
 }
 
-async function writeVideoFiles(videos, directory, prefix = '') {
+async function writeVideoFiles(videos, directory, { prefix = '', reencode = false } = {}) {
   await mkdir(directory, { recursive: true })
   const saved = {}
 
@@ -1086,10 +1101,111 @@ async function writeVideoFiles(videos, directory, prefix = '') {
 
     const target = path.join(directory, `${prefix}${name}.webm`)
     await copyFile(source, target)
+    if (reencode) await reencodeVideo(target)
     saved[name] = path.relative(ROOT, target).split(path.sep).join('/')
   }
 
   return saved
+}
+
+/** Re-encodes one recording in place, or leaves it raw and says why. */
+async function reencodeVideo(target) {
+  const name = path.basename(target)
+  const ffmpeg = findPlaywrightFfmpeg()
+
+  if (!ffmpeg) {
+    log(`[demo] no Playwright ffmpeg on this machine: ${name} stays as recorded`)
+    return
+  }
+
+  const before = (await stat(target)).size
+  // The temporary file keeps the extension: ffmpeg picks its muxer from it.
+  const temporary = target.replace(/\.webm$/, '.encoded.webm')
+  const result = spawnSync(
+    ffmpeg,
+    [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-y',
+      '-i',
+      target,
+      ...REENCODE_ARGS,
+      '-f',
+      'webm',
+      temporary,
+    ],
+    { stdio: 'inherit' },
+  )
+
+  if (result.status !== 0 || !existsSync(temporary)) {
+    await rm(temporary, { force: true })
+    log(`[demo] ffmpeg could not re-encode ${name}: it stays as recorded`)
+    return
+  }
+
+  await rename(temporary, target)
+
+  const after = (await stat(target)).size
+  log(`[demo] re-encoded ${name} (${megabytes(before)} → ${megabytes(after)}, VP8, 15 fps)`)
+}
+
+function megabytes(bytes) {
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+/**
+ * `facts.json` is committed and therefore covered by `npm run format:check`, so
+ * the script that writes it formats it the way the repository does instead of
+ * leaving a file the next `prettier --write` would touch. Same shell trick as
+ * `scripts/report.mjs`: Windows needs a shell for `npx.cmd`.
+ */
+function formatJson(file) {
+  const relative = path.relative(ROOT, file).split(path.sep).join('/')
+  const command = ['npx', 'prettier', '--write', relative]
+  const quote = (value) => (/\s/.test(value) ? `"${value}"` : value)
+  const result =
+    process.platform === 'win32'
+      ? spawnSync(command.map(quote).join(' '), { cwd: ROOT, shell: true, stdio: 'inherit' })
+      : spawnSync(command[0], command.slice(1), { cwd: ROOT, stdio: 'inherit' })
+
+  if (result.status !== 0) log(`[demo] could not format ${path.basename(file)} with prettier`)
+}
+
+/**
+ * Playwright downloads its own ffmpeg next to the browsers when video recording
+ * is enabled — under `ms-playwright/ffmpeg-<build>/` in the platform cache
+ * directory. It is found rather than configured: the demo already depends on it
+ * having been downloaded, because that is what recorded the video in the first
+ * place.
+ */
+function findPlaywrightFfmpeg() {
+  const cache = path.join(homedir(), '.cache', 'ms-playwright')
+  const roots = [
+    process.env.PLAYWRIGHT_BROWSERS_PATH,
+    process.platform === 'win32'
+      ? process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'ms-playwright')
+      : undefined,
+    process.platform === 'darwin'
+      ? path.join(homedir(), 'Library', 'Caches', 'ms-playwright')
+      : (process.env.XDG_CACHE_HOME && path.join(process.env.XDG_CACHE_HOME, 'ms-playwright')) ||
+        cache,
+  ].filter(Boolean)
+
+  for (const root of roots) {
+    if (!existsSync(root)) continue
+
+    for (const entry of readdirSync(root)) {
+      if (!entry.startsWith('ffmpeg')) continue
+
+      const directory = path.join(root, entry)
+      const binary = readdirSync(directory).find((file) => file.startsWith('ffmpeg'))
+
+      if (binary) return path.join(directory, binary)
+    }
+  }
+
+  return null
 }
 
 try {

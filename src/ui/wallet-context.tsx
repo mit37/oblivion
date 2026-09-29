@@ -16,6 +16,7 @@ import {
   toChainReader,
   toChainSender,
 } from '../wallet/clients'
+import { condenseChainError } from '../wallet/error-text'
 import { WalletService, type SendRequest } from '../wallet/service'
 import type { TokenBalance, TokenInfo, TransactionStatus, WalletTransaction } from '../wallet/types'
 import { useVault } from './vault-context'
@@ -307,17 +308,18 @@ export function WalletProvider({ children, factory }: WalletProviderProps) {
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>
 }
 
-/** Turns any thrown value into something the UI can show without leaking keys. */
+/**
+ * Turns any thrown value into something the UI can show without leaking keys.
+ *
+ * Our own errors already read well; anything else came from the provider as a
+ * multi-line dump and is condensed to a single sentence (see `error-text.ts`).
+ */
 export function describeWalletError(cause: unknown): WalletErrorInfo {
   if (cause instanceof WalletError) {
     return { message: cause.message, code: cause.code }
   }
 
-  if (cause instanceof Error) {
-    return { message: cause.message, code: 'unknown' }
-  }
-
-  return { message: 'the wallet could not reach Sepolia', code: 'unknown' }
+  return { message: condenseChainError(cause), code: 'unknown' }
 }
 
 // The hook lives beside the provider on purpose: they share the private context.

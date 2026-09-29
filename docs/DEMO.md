@@ -23,8 +23,9 @@ search and the timings are in `docs/demo/facts.json`.
 Two things that recording does **not** contain, on purpose:
 
 - **A funded payment.** No funded key exists in this repo or in the build environment, so with
-  the live endpoint `eth_estimateGas` answers `EVM error: OutOfFunds`, the card shows that, and
-  `Pay` stays disabled. The recording shows the decline path instead of pretending.
+  the live endpoint `eth_estimateGas` answers `EVM error: OutOfFunds`, the card says in one line
+  that the wallet does not hold enough Sepolia ETH to cover the amount plus the fee, and `Pay`
+  stays disabled. The recording shows the decline path instead of pretending.
 - **A real transaction hash.** The paying click is recorded against a **stubbed** Sepolia
   endpoint in `docs/demo/stub/` (`--chain=stub`, the same canned JSON-RPC responder
   `e2e/wallet.spec.ts` uses), where the badge on every frame reads `chain: STUB (Sepolia faked)`.
