@@ -1,5 +1,11 @@
 name: CI
 
+# Every `uses:` below is pinned to a commit SHA, with the version tag in a
+# trailing comment. A mutable major tag is a moving target: whoever can move
+# `v4` decides what this repository runs. CI is the same pipeline locally as it
+# is here — `npm run verify` plus `npm run scan:secrets`, which is also what a
+# developer runs by hand.
+
 on:
   push:
     branches: [main]
@@ -13,9 +19,9 @@ jobs:
     name: lint, typecheck, test, build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           cache: npm
@@ -49,7 +55,7 @@ jobs:
 
       - name: Upload Playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-report
           path: playwright-report/
@@ -62,33 +68,33 @@ jobs:
   gitleaks:
     name: secret scan
     runs-on: ubuntu-latest
-    env:
-      GITLEAKS_VERSION: 8.24.3
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      # The gitleaks action scans the range it derives from the push event:
-      # <parent of the first pushed commit>^..<head>. On a repository's first
-      # push that first commit is the root, which has no parent, so git exits
-      # with "ambiguous argument" and the job fails without scanning anything.
-      # The pinned binary scanning the whole history cannot go wrong that way,
-      # and it takes the Node 20 runtime question out of the job as well.
-      - name: Install gitleaks ${{ env.GITLEAKS_VERSION }}
-        run: |
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | tar -xz -C /usr/local/bin gitleaks
-          gitleaks version
+      # The scan is a repository script rather than a marketplace action, so this
+      # job and a developer's machine run the identical command over the
+      # identical binary (8.24.3, checksum-verified against the release before it
+      # is executed). `gitleaks/gitleaks-action@v2` cannot be used here: it
+      # derives its range as `<parent of the first pushed commit>^..<head>`, and
+      # on a repository's first push that commit is the root, so git answers
+      # "ambiguous argument" and the job fails having scanned nothing. A binary
+      # scanning `--all` cannot fail that way. See docs/PLAN.md, "The first push".
+      #
+      # `--self-check` then pipes a generated, credential-shaped string through
+      # the rules and fails if it is *not* reported, so an allowlist that grew
+      # too broad cannot quietly turn the scan into a no-op.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
 
       - name: Scan the whole history for secrets
-        run: >
-          gitleaks git --redact -v --exit-code 1 --log-opts="--all --no-merges"
-          --report-format=sarif --report-path=gitleaks-results.sarif .
+        run: npm run scan:secrets -- --self-check
 
       - name: Upload the gitleaks report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gitleaks-results
           path: gitleaks-results.sarif

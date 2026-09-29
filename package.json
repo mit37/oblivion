@@ -25,6 +25,7 @@
     "test:e2e": "npm run build && playwright test",
     "report": "node scripts/report.mjs",
     "report:check": "node scripts/report.mjs --check",
+    "scan:secrets": "node scripts/scan-secrets.mjs",
     "demo": "npm run build && node scripts/demo.mjs",
     "demo:stub": "npm run build && node scripts/demo.mjs --chain=stub --out=docs/demo/stub",
     "demo:prepare": "node scripts/demo.mjs --prepare-only",

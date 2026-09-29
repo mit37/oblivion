@@ -11,6 +11,9 @@ coverage/
 playwright-report/
 test-results/
 
+# Secret-scan report (scripts/scan-secrets.mjs writes it on every run)
+gitleaks-results.sarif
+
 # Secrets — never commit these (STANDARDS §2)
 .env
 .env.*
